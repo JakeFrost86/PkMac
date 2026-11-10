@@ -52,3 +52,21 @@ jobs:
           # Notes written by hand in release-notes/<version>.md; GitHub's commit list only as a fallback.
           body_path: ${{ hashFiles(format('release-notes/{0}.md', steps.ver.outputs.app)) != '' && format('release-notes/{0}.md', steps.ver.outputs.app) || '' }}
           generate_release_notes: ${{ hashFiles(format('release-notes/{0}.md', steps.ver.outputs.app)) == '' }}
+
+  # Keeps the text of an already published release in sync with release-notes/<version>.md.
+  notes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=$(python3 -c "import json;print(json.load(open('versions.json'))['app'])")
+          F="release-notes/$V.md"
+          if [ -f "$F" ] && gh release view "v$V" -R "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release edit "v$V" -R "${{ github.repository }}" --notes-file "$F"
+            echo "Note della release v$V aggiornate"
+          else
+            echo "Nessuna release v$V esistente o nessun file $F"
+          fi
