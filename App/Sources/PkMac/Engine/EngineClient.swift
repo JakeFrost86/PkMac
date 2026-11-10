@@ -152,7 +152,4 @@ final class EngineClient: @unchecked Sendable {
     }
 }
 
-enum Log {
-    static func engine(_ s: String) { print("[engine] \(s)") }
-    static func app(_ s: String) { print("[app] \(s)") }
-}
+

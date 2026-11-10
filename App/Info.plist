@@ -10,6 +10,8 @@
 	<string>io.github.pkmac</string>
 	<key>CFBundleExecutable</key>
 	<string>PkMac</string>
+	<key>NSPrincipalClass</key>
+	<string>PkMacApplication</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

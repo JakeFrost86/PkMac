@@ -315,7 +315,6 @@ public static class Gifts
             var conv = EntityConverter.ConvertToType(pk, sav.PKMType, out var res);
             pk = conv ?? throw new EngineException($"Questo Pokémon evento non è trasferibile in questo gioco ({res}).");
         }
-        Transfer.HomeTracker(pk, g.Context, sav.Context);
         var errata = sav.EvaluateCompatibility(pk, s.Language);
         if (errata.Count > 0)
             throw new EngineException("Non compatibile con questo gioco:\n" + string.Join("\n", errata));

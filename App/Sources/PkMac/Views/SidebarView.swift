@@ -5,6 +5,9 @@ struct SidebarView: View {
 
     var body: some View {
         @Bindable var model = model
+        // Footer below the list (not a safe-area inset): with a scrolling sidebar the inset made
+        // AppKit re-layout in a loop and abort.
+        VStack(spacing: 0) {
         List(selection: Binding(get: { model.section }, set: { if let s = $0 { model.section = s } })) {
             if let save = model.save {
                 SaveCard(save: save)
@@ -35,8 +38,10 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
-        .safeAreaInset(edge: .bottom) {
-            EngineFooter()
+        // A scroller that appears/disappears changes the row width, which changes the height,
+        // which toggles the scroller again: AppKit gives up after too many layout passes.
+        .scrollIndicators(.never)
+        EngineFooter()
         }
     }
 
@@ -56,8 +61,8 @@ private struct SidebarRow: View {
     var body: some View {
         Label {
             HStack {
-                Text(section.title)
-                Spacer()
+                Text(section.title).lineLimit(1)
+                Spacer(minLength: 4)
                 if let badge {
                     Text(badge).font(.system(size: 11, weight: .semibold, design: .rounded)).foregroundStyle(.secondary)
                 }

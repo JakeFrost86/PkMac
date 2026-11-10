@@ -6,6 +6,8 @@ struct PkMacApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var model = AppModel()
 
+    init() { ErrorReporter.install() }
+
     var body: some Scene {
         Window("PkMac", id: "main") {
             RootView()
@@ -37,6 +39,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @MainActor
     func applicationDidFinishLaunching(_ notification: Notification) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { ErrorReporter.checkPreviousCrash() }
+        if ProcessInfo.processInfo.environment["PKMAC_TOUR"] == "1" {
+            // Diagnostic tour: visits every section once a save is open (used by the local test script).
+            Task { @MainActor in
+                while model?.save == nil { try? await Task.sleep(for: .milliseconds(300)) }
+                for s in AppSection.allCases where s != .liveHex && s != .home {
+                    Log.app("Tour: \(s.title)")
+                    model?.section = s
+                    try? await Task.sleep(for: .seconds(2.5))
+                }
+                model?.section = .boxes
+                for t in InspectorTour.tabs {
+                    Log.app("Tour scheda: \(t)")
+                    NotificationCenter.default.post(name: .pkmacTourTab, object: t)
+                    try? await Task.sleep(for: .seconds(2))
+                }
+                Log.app("Tour completato")
+            }
+        }
+        if ProcessInfo.processInfo.environment["PKMAC_TEST_EXCEPTION"] == "1" {
+            // Self-test of the error reporter: an AppKit exception must not close the app.
+            Timer.scheduledTimer(withTimeInterval: 4, repeats: false) { _ in
+                NSException(name: .genericException, reason: "Eccezione di prova del sistema di segnalazione errori", userInfo: nil).raise()
+            }
+        }
         if AppIconManager.current != AppIconManager.defaultID {
             AppIconManager.apply(AppIconManager.current, persist: false)
         }
@@ -82,6 +109,9 @@ struct PkMacCommands: Commands {
     let model: AppModel
 
     var body: some Commands {
+        CommandGroup(after: .help) {
+            Button("Mostra il registro degli errori") { ErrorReporter.revealLog() }
+        }
         CommandGroup(replacing: .newItem) {
             Button("Apri salvataggio…") { model.openPanel() }
                 .keyboardShortcut("o")

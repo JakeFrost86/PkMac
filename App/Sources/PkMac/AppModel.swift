@@ -221,6 +221,7 @@ final class AppModel {
 
     func toast(_ kind: Toast.Kind, _ title: String, _ message: String? = nil) {
         let t = Toast(kind: kind, title: title, message: message)
+        if kind == .error { Log.error("\(title)\(message.map { ": \($0)" } ?? "")") }
         withAnimation(Theme.spring) { toasts.append(t) }
         Task {
             try? await Task.sleep(for: .seconds(kind == .error ? 7 : 3.5))

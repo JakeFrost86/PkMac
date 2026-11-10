@@ -47,7 +47,7 @@ struct BoxView: View {
             )
 
             // Plain row (not a safe-area inset: changing insets during layout crashes AppKit).
-            if model.save?.hasParty == true, !model.party.isEmpty {
+            if !Diag.off("DOCK"), model.save?.hasParty == true, !model.party.isEmpty {
                 PartyDock()
                     .frame(height: 78)
                     .padding(.horizontal, 26)
@@ -170,7 +170,7 @@ private struct BoxStrip: View {
                         }
                         .buttonStyle(.plain)
                         .help("\(b.name) · \(b.count) Pokémon — trascina qui un Pokémon per spostarlo in questo box")
-                        .modifier(BoxChipDrop(box: b.box))
+                        .modifier(BoxChipDrop(box: b.box, enabled: !Diag.off("CHIPDROP")))
                         .id(b.box)
                     }
                 }
@@ -188,10 +188,15 @@ private struct BoxStrip: View {
 private struct BoxChipDrop: ViewModifier {
     @Environment(AppModel.self) private var model
     let box: Int
+    var enabled = true
     @State private var targeted = false
     @State private var hoverTask: Task<Void, Never>?
 
     func body(content: Content) -> some View {
+        if enabled { dropping(content) } else { content }
+    }
+
+    private func dropping(_ content: Content) -> some View {
         content
             .scaleEffect(targeted ? 1.25 : 1)
             .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.brand, lineWidth: targeted ? 2 : 0))

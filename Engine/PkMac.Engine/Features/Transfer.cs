@@ -58,9 +58,6 @@ public static class Transfer
             pk = converted;
         }
 
-        // Pokémon moved between Switch-era games travel through HOME, which stamps a tracker.
-        LastStage = "tracker";
-        HomeTracker(pk, src.Context, dest.Context);
 
         if (!dest.Personal.IsPresentInGame(pk.Species, pk.Form))
             return (null, $"Non trasferibile: {Describe.Name(to.Strings.Species, pk.Species)} non è presente in {GameInfo.GetVersionName(dest.Version)}.");
@@ -84,12 +81,6 @@ public static class Transfer
         }
         LastStage = "done";
         return (pk, null);
-    }
-
-    public static void HomeTracker(PKM pk, EntityContext from, EntityContext to)
-    {
-        if (from != to && pk is IHomeTrack h && h.Tracker == 0)
-            h.Tracker = (ulong)Random.Shared.NextInt64(1, long.MaxValue);
     }
 
     private static bool SafeValid(PKM pk)

@@ -30,6 +30,8 @@ public static class Program
     {
         Console.OutputEncoding = Encoding.UTF8;
         Console.InputEncoding = Encoding.UTF8;
+        // The HOME tracker is written only by Pokémon HOME: when it's missing we warn, we never invent one.
+        ParseSettings.Settings.HOMETransfer.HOMETransferTrackerNotPresent = Severity.Fishy;
 
         if (args.Contains("--version"))
         {

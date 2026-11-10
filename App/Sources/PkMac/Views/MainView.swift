@@ -2,19 +2,22 @@ import SwiftUI
 
 struct MainView: View {
     @Environment(AppModel.self) private var model
-    @State private var showInspector = true
+    @State private var showInspector = !Diag.off("INSPECTOR")
 
     var body: some View {
         @Bindable var model = model
         NavigationSplitView {
             SidebarView()
+                .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
                 .navigationSplitViewColumnWidth(min: 220, ideal: 248, max: 300)
         } detail: {
             ZStack(alignment: .top) {
                 // Fixed minimum: section content must never push its own minimum size into the split view
                 // (a changing minimum makes AppKit loop on constraint updates and abort).
+                // Constant minimum size for every split-view column: SwiftUI otherwise forwards the
+                // content's (changing) minimum to NSSplitView, which can re-layout in a loop and abort.
                 content
-                    .frame(minWidth: 560, maxWidth: .infinity, minHeight: 420, maxHeight: .infinity)
+                    .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
                     .clipped()
                 if !model.searchText.isEmpty {
                     SearchResultsPanel()
@@ -26,7 +29,7 @@ struct MainView: View {
             .animation(Theme.spring, value: model.searchText.isEmpty)
             .inspector(isPresented: $showInspector) {
                 PokemonInspector()
-                    .frame(minWidth: 340, maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
                     .clipped()
                     .inspectorColumnWidth(min: 360, ideal: 410, max: 520)
             }

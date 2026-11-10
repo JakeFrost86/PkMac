@@ -98,23 +98,38 @@ struct PokemonDetailView: View {
     private var type: PokeType { PokeType(key: detail.summary.primaryType) }
 
     var body: some View {
+        content
+            .onReceive(NotificationCenter.default.publisher(for: .pkmacTourTab)) { n in
+                if let raw = n.object as? String, let t = DetailTab(rawValue: raw) { tab = t }
+            }
+    }
+
+    private var content: some View {
         ScrollView {
             VStack(spacing: 16) {
                 Hero(detail: detail)
                 LegalityBanner(detail: detail)
-                Picker("", selection: $tab) {
-                    ForEach(DetailTab.allCases) { t in
-                        Image(systemName: t.symbol).help(t.rawValue).tag(t)
+                if Diag.off("ICONTABS") {
+                    Picker("", selection: $tab) {
+                        ForEach(DetailTab.allCases) { t in Label(t.rawValue, systemImage: t.symbol).tag(t) }
                     }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                } else {
+                    Picker("", selection: $tab) {
+                        ForEach(DetailTab.allCases) { t in
+                            Image(systemName: t.symbol).help(t.rawValue).tag(t)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    Text(tab.rawValue)
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, -8)
+                        .contentTransition(.opacity)
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                Text(tab.rawValue)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, -8)
-                    .contentTransition(.opacity)
 
                 Group {
                     switch tab {
@@ -712,4 +727,12 @@ private struct RibbonChip: View {
         .onTapGesture { if !row.count { onSet(on ? 0 : 1) } }
         .help(row.name)
     }
+}
+
+extension Notification.Name {
+    static let pkmacTourTab = Notification.Name("pkmacTourTab")
+}
+
+enum InspectorTour {
+    static let tabs = ["Riepilogo", "Statistiche", "Mosse", "Origine", "Fiocchi", "Avanzate"]
 }

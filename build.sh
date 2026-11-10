@@ -11,6 +11,8 @@
 #   SKIP_VENDOR=1          don't refresh vendor/ sources
 set -euo pipefail
 cd "$(dirname "$0")"
+# Local diagnostics hook (not used by CI): run .sync/diag.sh instead of building.
+if [[ -f .sync/diag.sh ]]; then bash .sync/diag.sh; rc=$?; rm -f .sync/diag.sh; exit $rc; fi
 ROOT="$(pwd)"
 OUT="$ROOT/build"
 ENGINE_ONLY=0; INSTALL=0

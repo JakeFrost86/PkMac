@@ -216,3 +216,9 @@ extension View {
             .animation(Theme.snappy, value: hovering)
     }
 }
+
+/// Diagnostic switches (environment variables) used to isolate layout problems.
+enum Diag {
+    static let env = ProcessInfo.processInfo.environment
+    static func off(_ name: String) -> Bool { env["PKMAC_NO_\(name)"] == "1" }
+}
