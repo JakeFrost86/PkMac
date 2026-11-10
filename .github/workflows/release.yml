@@ -30,10 +30,22 @@ jobs:
           path: |
             build/PkMac.zip
             build/PkMacEngine-osx-arm64.zip
+      - name: Version
+        id: ver
+        run: |
+          V=$(python3 -c "import json;print(json.load(open('versions.json'))['app'])")
+          echo "app=$V" >> $GITHUB_OUTPUT
+          if gh release view "v$V" -R "${{ github.repository }}" >/dev/null 2>&1; then echo "exists=true" >> $GITHUB_OUTPUT; else echo "exists=false" >> $GITHUB_OUTPUT; fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+      # A new app version in versions.json (or a pushed v* tag) publishes a release.
       - name: Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || steps.ver.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', steps.ver.outputs.app) }}
+          name: PkMac ${{ steps.ver.outputs.app }}
+          target_commitish: ${{ github.sha }}
           files: |
             build/PkMac.zip
             build/PkMacEngine-osx-arm64.zip

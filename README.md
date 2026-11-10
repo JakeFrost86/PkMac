@@ -48,7 +48,7 @@ Servono macOS 26 o successivo, Xcode 26 o successivo e .NET 10 SDK.
 ./build.sh --install  # e copia in /Applications
 ```
 
-Per pubblicare: fai il push su GitHub e crea un tag `v1.0.0`. La Action compila e allega `PkMac.zip` e `PkMacEngine-osx-arm64.zip` alla release.
+Per pubblicare una nuova versione aumenta `app` in `versions.json` e fai il push su `main`: la Action compila e crea la release `v<versione>` con `PkMac.zip` e `PkMacEngine-osx-arm64.zip` (va bene anche un tag `v*`).
 
 ## Crediti e licenza
 
