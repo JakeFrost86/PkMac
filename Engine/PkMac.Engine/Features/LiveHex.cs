@@ -28,14 +28,14 @@ public sealed class LiveHex(Session s)
     {
         var sav = s.Sav;
         if (!RamOffsets.IsLiveHeXSupported(sav))
-            throw new EngineException("LiveHeX non supporta questo gioco.");
+            throw new EngineException(Tr.T($"LiveHeX non supporta questo gioco."));
         Disconnect();
 
         var com = RamOffsets.GetCommunicator(sav, InjectorCommunicationType.SocketNetwork);
         com.IP = ip;
         com.Port = port;
         try { com.Connect(); }
-        catch (Exception ex) { throw new EngineException($"Connessione a {ip}:{port} non riuscita: {ex.Message}"); }
+        catch (Exception ex) { throw new EngineException(Tr.T($"Connessione a {ip}:{port} non riuscita: {ex.Message}")); }
 
         var versions = RamOffsets.GetValidVersions(sav);
         try
@@ -59,25 +59,25 @@ public sealed class LiveHex(Session s)
         var botbaseVer = nx.GetBotbaseVersion();
         var version = Version.TryParse(botbaseVer, out var v) ? v : null;
         if (version is null || version < InjectionBase.BotbaseVersion)
-            throw new EngineException($"sys-botbase non compatibile: serve la versione {InjectionBase.BotbaseVersion} o successiva (trovata {botbaseVer.Trim()}).");
+            throw new EngineException(Tr.T($"sys-botbase non compatibile: serve la versione {InjectionBase.BotbaseVersion} o successiva (trovata {botbaseVer.Trim()})."));
 
         var titleID = nx.GetTitleID();
         _game = nx.GetGameInfo("name").Trim();
         _gameVersion = nx.GetGameInfo("version").Trim();
 
         if (!InjectionBase.SaveCompatibleWithTitle(sav, titleID))
-            throw new EngineException($"Gioco in esecuzione: {_game} ({_gameVersion}).\nSalvataggio aperto: Pokémon {GameInfo.GetVersionName(sav.Version)}.\nApri in PkMac un salvataggio dello stesso gioco.");
+            throw new EngineException(Tr.T($"Gioco in esecuzione: {_game} ({_gameVersion}).\nSalvataggio aperto: Pokémon {GameInfo.GetVersionName(sav.Version)}.\nApri in PkMac un salvataggio dello stesso gioco."));
 
         var lv = InjectionBase.GetVersionFromTitle(titleID, _gameVersion);
         if (lv == LiveHeXVersion.Unknown)
-            throw new EngineException($"Versione {_gameVersion} di {_game} non supportata (supportate: da {versions[^1]} a {versions[0]}).");
+            throw new EngineException(Tr.T($"Versione {_gameVersion} di {_game} non supportata (supportate: da {versions[^1]} a {versions[0]})."));
 
         _bot = new PokeSysBotMini(lv, nx);
         var data = _bot.ReadSlot(0, 0).ToArray();
         if (lv >= LiveHeXVersion.ZA_v101 && lv <= LiveHeXVersion.ZA_v202)
             data = data[..344];
         if (!LooksValid(sav, data))
-            throw new EngineException("I dati letti non sono validi: la RAM potrebbe essere spostata. Riavvia il gioco e riprova.");
+            throw new EngineException(Tr.T($"I dati letti non sono validi: la RAM potrebbe essere spostata. Riavvia il gioco e riprova."));
     }
 
     private void ConnectNtr(SaveFile sav, ICommunicator com, LiveHeXVersion[] versions)
@@ -94,7 +94,7 @@ public sealed class LiveHex(Session s)
                 return;
             }
         }
-        throw new EngineException($"Nessuna versione compatibile trovata via NTR per Pokémon {GameInfo.GetVersionName(sav.Version)}.");
+        throw new EngineException(Tr.T($"Nessuna versione compatibile trovata via NTR per Pokémon {GameInfo.GetVersionName(sav.Version)}."));
     }
 
     private static bool LooksValid(SaveFile sav, byte[] data)
@@ -117,7 +117,7 @@ public sealed class LiveHex(Session s)
         return true;
     }
 
-    private PokeSysBotMini Bot => _bot is { Connected: true } b ? b : throw new EngineException("LiveHeX non è connesso.");
+    private PokeSysBotMini Bot => _bot is { Connected: true } b ? b : throw new EngineException(Tr.T($"LiveHeX non è connesso."));
 
     public object ReadBox(int box)
     {
@@ -126,8 +126,8 @@ public sealed class LiveHex(Session s)
         var len = sav.BoxSlotCount * (RamOffsets.GetSlotSize(bot.Version) + RamOffsets.GetGapSize(bot.Version));
         var data = bot.ReadBox(box, len);
         if (data.Length == 0)
-            throw new EngineException("Il gioco non ha restituito dati per questo box.");
-        s.Snapshot($"LiveHeX: leggi box {box + 1}");
+            throw new EngineException(Tr.T($"Il gioco non ha restituito dati per questo box."));
+        s.Snapshot(Tr.T($"LiveHeX: leggi box {box + 1}"));
         sav.SetBoxBinary(data, box);
         s.Dirty = true;
         return Storage.Box(s, box);

@@ -4,15 +4,15 @@ struct SettingsView: View {
     var body: some View {
         TabView {
             UpdatesSettings()
-                .tabItem { Label("Aggiornamenti", systemImage: "arrow.triangle.2.circlepath") }
+                .tabItem { Label(L("Aggiornamenti"), systemImage: "arrow.triangle.2.circlepath") }
             AppearanceSettings()
-                .tabItem { Label("Aspetto", systemImage: "paintpalette") }
+                .tabItem { Label(L("Aspetto"), systemImage: "paintpalette") }
             NamingSettings()
-                .tabItem { Label("Nomi file", systemImage: "textformat") }
+                .tabItem { Label(L("Nomi file"), systemImage: "textformat") }
             GeneralSettings()
-                .tabItem { Label("Generale", systemImage: "gearshape") }
+                .tabItem { Label(L("Generale"), systemImage: "gearshape") }
             AboutSettings()
-                .tabItem { Label("Info", systemImage: "info.circle") }
+                .tabItem { Label(L("Info"), systemImage: "info.circle") }
         }
         .frame(width: 640, height: 640)
     }
@@ -28,27 +28,27 @@ private struct UpdatesSettings: View {
             SwiftUI.Section {
                 VersionRow(title: "PKHeX.Core", symbol: "cpu.fill", current: v?.core ?? "…",
                            latest: u.latestCore, available: u.coreUpdateAvailable(current: v?.core),
-                           note: "Scaricato da NuGet e installato al volo, senza ricompilare.") {
+                           note: L("Scaricato da NuGet e installato al volo, senza ricompilare.")) {
                     if let l = u.latestCore { Task { await model.installCore(l) } }
                 }
-                VersionRow(title: "Motore e plugin", symbol: "puzzlepiece.extension.fill", current: v?.engine ?? "…",
+                VersionRow(title: L("Motore e plugin"), symbol: "puzzlepiece.extension.fill", current: v?.engine ?? "…",
                            latest: u.enginePack?.version, available: u.engineUpdateAvailable(current: v?.engine),
-                           note: "Auto Legality \(v?.alm ?? "?"), LiveHeX, HOME Live, PokeFilename, PluginPile. Ricompilato da GitHub Actions.") {
+                           note: L("Auto Legality \(v?.alm ?? "?"), LiveHeX, HOME Live, PokeFilename, PluginPile. Ricompilato da GitHub Actions.")) {
                     Task { await model.installEnginePack() }
                 }
                 VersionRow(title: "PkMac", symbol: "macwindow", current: Updater.appVersion,
                            latest: u.appRelease?.version, available: u.appUpdateAvailable,
-                           note: "L'app intera, dalle release GitHub.") {
+                           note: L("L'app intera, dalle release GitHub.")) {
                     if let r = u.appRelease { Task { await u.installApp(r) } }
                 }
             } header: {
                 HStack {
-                    Text("Versioni")
+                    Text(L("Versioni"))
                     Spacer()
                     Button {
                         Task { await model.checkUpdates(silent: false) }
                     } label: {
-                        if u.phase == .checking { ProgressView().controlSize(.small) } else { Label("Controlla ora", systemImage: "arrow.clockwise") }
+                        if u.phase == .checking { ProgressView().controlSize(.small) } else { Label(L("Controlla ora"), systemImage: "arrow.clockwise") }
                     }
                     .buttonStyle(.glass)
                 }
@@ -64,18 +64,18 @@ private struct UpdatesSettings: View {
             default: EmptyView()
             }
 
-            SwiftUI.Section("Automatico") {
-                Toggle("Controlla gli aggiornamenti all'avvio", isOn: Binding(get: { u.autoCheck }, set: { u.autoCheck = $0 }))
-                Toggle("Installa da solo i nuovi PKHeX.Core (dopo i test di sicurezza)", isOn: Binding(get: { u.autoInstallCore }, set: { u.autoInstallCore = $0 }))
+            SwiftUI.Section(L("Automatico")) {
+                Toggle(L("Controlla gli aggiornamenti all'avvio"), isOn: Binding(get: { u.autoCheck }, set: { u.autoCheck = $0 }))
+                Toggle(L("Installa da solo i nuovi PKHeX.Core (dopo i test di sicurezza)"), isOn: Binding(get: { u.autoInstallCore }, set: { u.autoInstallCore = $0 }))
                 if let d = u.lastCheck {
-                    Text("Ultimo controllo: \(d.formatted(date: .abbreviated, time: .shortened))").font(.caption).foregroundStyle(.secondary)
+                    Text(L("Ultimo controllo: \(d.formatted(date: .abbreviated, time: .shortened))")).font(.caption).foregroundStyle(.secondary)
                 }
             }
 
-            SwiftUI.Section("Ripristino") {
-                Button("Torna al motore incluso nell'app") { Task { await model.rollbackEngine() } }
+            SwiftUI.Section(L("Ripristino")) {
+                Button(L("Torna al motore incluso nell'app")) { Task { await model.rollbackEngine() } }
                     .disabled(EngineManager.activeManifest() == nil)
-                Text("Utile se un aggiornamento del motore dovesse dare problemi.").font(.caption).foregroundStyle(.secondary)
+                Text(L("Utile se un aggiornamento del motore dovesse dare problemi.")).font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
@@ -106,9 +106,9 @@ private struct VersionRow: View {
             }
             Spacer()
             if available, let latest {
-                Button("Installa \(latest)", action: install).buttonStyle(.glassProminent)
+                Button(L("Installa \(latest)"), action: install).buttonStyle(.glassProminent)
             } else if latest != nil {
-                StatusBadge(kind: .ok, text: "Aggiornato")
+                StatusBadge(kind: .ok, text: L("Aggiornato"))
             }
         }
         .padding(.vertical, 2)
@@ -123,18 +123,18 @@ private struct NamingSettings: View {
     var body: some View {
         Form {
             SwiftUI.Section("PokeFilename") {
-                Picker("Stile dei nomi", selection: $kind) {
-                    Text("PKHeX (predefinito)").tag("Default")
-                    Text("Anubis").tag("AnubisNamer")
-                    Text("Personalizzato").tag("CustomNamer")
+                Picker(L("Stile dei nomi"), selection: $kind) {
+                    Text(L("PKHeX (predefinito)")).tag("Default")
+                    Text(L("Anubis")).tag("AnubisNamer")
+                    Text(L("Personalizzato")).tag("CustomNamer")
                 }
                 if kind == "CustomNamer" {
-                    TextField("Schema", text: $pattern)
+                    TextField(L("Schema"), text: $pattern)
                         .font(.system(.body, design: .monospaced))
-                    Text("Parole chiave: {Species} {Nickname} {FormName} {CurrentLevel} {Nature} {ShinyType} {ItemName} {OriginalTrainerName} {TID16} {PID} {Legality} {Alpha} {Gigantamax} e qualsiasi proprietà PKHeX tra graffe.")
+                    Text(L("Parole chiave: {Species} {Nickname} {FormName} {CurrentLevel} {Nature} {ShinyType} {ItemName} {OriginalTrainerName} {TID16} {PID} {Legality} {Alpha} {Gigantamax} e qualsiasi proprietà PKHeX tra graffe."))
                         .font(.caption).foregroundStyle(.secondary)
                 }
-                Text("Usato quando esporti file .pk dai box.").font(.caption).foregroundStyle(.secondary)
+                Text(L("Usato quando esporti file .pk dai box.")).font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
@@ -149,8 +149,8 @@ private struct AppearanceSettings: View {
 
     var body: some View {
         Form {
-            SwiftUI.Section("Sprite dei Pokémon") {
-                Picker("Stile", selection: $sprites) {
+            SwiftUI.Section(L("Sprite dei Pokémon")) {
+                Picker(L("Stile"), selection: $sprites) {
                     ForEach(SpriteSettings.Mode.allCases) { m in
                         Text(m.title).tag(m.rawValue)
                     }
@@ -166,7 +166,7 @@ private struct AppearanceSettings: View {
                 .id(sprites)
                 Text(SpriteSettings.Mode(rawValue: sprites)?.detail ?? "").font(.caption).foregroundStyle(.secondary)
             }
-            SwiftUI.Section("Icona dell'app") {
+            SwiftUI.Section(L("Icona dell'app")) {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 6), spacing: 12) {
                     ForEach(AppIconManager.all, id: \.id) { item in
                         Button {
@@ -188,7 +188,7 @@ private struct AppearanceSettings: View {
                         .buttonStyle(.plain)
                     }
                 }
-                Text("Cambia subito l'icona nel Dock e nel Finder.").font(.caption).foregroundStyle(.secondary)
+                Text(L("Cambia subito l'icona nel Dock e nel Finder.")).font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
@@ -200,15 +200,23 @@ private struct GeneralSettings: View {
 
     var body: some View {
         Form {
-            SwiftUI.Section("Sprite (PokeAPI)") {
-                LabeledContent("Cache su disco", value: ByteCountFormatter.string(fromByteCount: cache, countStyle: .file))
-                Button("Svuota la cache degli sprite") {
+            SwiftUI.Section(L("Lingua")) {
+                Picker(L("Lingua dell'app"), selection: Binding(get: { Lang.choice }, set: { Lang.switchTo($0) })) {
+                    Text(L("Automatica (lingua di macOS)")).tag("system")
+                    Text("Italiano").tag("it")
+                    Text("English").tag("en")
+                }
+                Text(L("Vale anche per i nomi di Pokémon, mosse e strumenti e per i messaggi di legalità. Cambiando lingua PkMac si riavvia.")).font(.caption).foregroundStyle(.secondary)
+            }
+            SwiftUI.Section(L("Sprite (PokeAPI)")) {
+                LabeledContent(L("Cache su disco"), value: ByteCountFormatter.string(fromByteCount: cache, countStyle: .file))
+                Button(L("Svuota la cache degli sprite")) {
                     Task { await SpriteStore.shared.clearCache(); cache = await SpriteStore.shared.cacheSize() }
                 }
-                Text("Gli sprite di github.com/PokeAPI/sprites vengono scaricati la prima volta e poi restano sul Mac.").font(.caption).foregroundStyle(.secondary)
+                Text(L("Gli sprite di github.com/PokeAPI/sprites vengono scaricati la prima volta e poi restano sul Mac.")).font(.caption).foregroundStyle(.secondary)
             }
-            SwiftUI.Section("Cartelle") {
-                Button("Apri la cartella di PkMac") { NSWorkspace.shared.open(AppPaths.support) }
+            SwiftUI.Section(L("Cartelle")) {
+                Button(L("Apri la cartella di PkMac")) { NSWorkspace.shared.open(AppPaths.support) }
             }
         }
         .formStyle(.grouped)
@@ -222,18 +230,18 @@ private struct AboutSettings: View {
             VStack(spacing: 14) {
                 AnimatedLogo(width: 150, showText: false)
                 Text("PkMac \(Updater.appVersion)").font(.system(size: 22, weight: .heavy, design: .rounded)).foregroundStyle(Theme.brand)
-                Text("Editor di salvataggi Pokémon per macOS, basato su PKHeX.Core.").foregroundStyle(.secondary)
+                Text(L("Editor di salvataggi Pokémon per macOS, basato su PKHeX.Core.")).foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 6) {
-                    credit("PKHeX.Core", "Kaphotics (kwsch) e collaboratori · GPLv3")
-                    credit("Auto Legality Mod, LiveHeX", "architdate, kwsch, santacrab2 · PKHeX-Plugins")
-                    credit("HOME Live", "Manu098vm · HOME-Live-Plugin")
-                    credit("PokeFilename", "architdate, Lusamine")
+                    credit("PKHeX.Core", L("Kaphotics (kwsch) e collaboratori · GPLv3"))
+                    credit("Auto Legality Mod, LiveHeX", L("architdate, kwsch, santacrab2 · PKHeX-Plugins"))
+                    credit("HOME Live", L("Manu098vm · HOME-Live-Plugin"))
+                    credit("PokeFilename", L("architdate, Lusamine"))
                     credit("PluginPile (ordinamento, Pokémon speciali)", "foohyfooh")
                     credit("Sprite", "PokeAPI/sprites")
                 }
                 .padding(14)
                 .background(.primary.opacity(0.04), in: .rect(cornerRadius: 14))
-                Text("Pokémon è un marchio di Nintendo, Creatures e GAME FREAK. PkMac non è affiliato con loro. Non usare Pokémon modificati in lotta o negli scambi con chi non ne è al corrente.")
+                Text(L("Pokémon è un marchio di Nintendo, Creatures e GAME FREAK. PkMac non è affiliato con loro. Non usare Pokémon modificati in lotta o negli scambi con chi non ne è al corrente."))
                     .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
             }
             .padding(24)

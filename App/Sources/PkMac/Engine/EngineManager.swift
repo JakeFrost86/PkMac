@@ -113,7 +113,7 @@ enum Shell {
     struct Failure: LocalizedError {
         let status: Int32
         let output: String
-        var errorDescription: String? { "Comando fallito (\(status)): \(output.prefix(400))" }
+        var errorDescription: String? { L("Comando fallito (\(status)): \(output.prefix(400))") }
     }
 
     /// Runs a process and returns stdout; throws on non-zero exit.

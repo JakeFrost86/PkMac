@@ -58,10 +58,10 @@ public static partial class AzuriiZip
 
     private static readonly Dictionary<string, string> KnownTitles = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["0004000000055D00"] = "Pokémon X", ["0004000000055E00"] = "Pokémon Y",
-        ["000400000011C400"] = "Pokémon Rubino Omega", ["000400000011C500"] = "Pokémon Zaffiro Alpha",
-        ["0004000000164800"] = "Pokémon Sole", ["0004000000175E00"] = "Pokémon Luna",
-        ["00040000001B5000"] = "Pokémon Ultrasole", ["00040000001B5100"] = "Pokémon Ultraluna",
+        ["0004000000055D00"] = Tr.T($"Pokémon X"), ["0004000000055E00"] = Tr.T($"Pokémon Y"),
+        ["000400000011C400"] = Tr.T($"Pokémon Rubino Omega"), ["000400000011C500"] = Tr.T($"Pokémon Zaffiro Alpha"),
+        ["0004000000164800"] = Tr.T($"Pokémon Sole"), ["0004000000175E00"] = Tr.T($"Pokémon Luna"),
+        ["00040000001B5000"] = Tr.T($"Pokémon Ultrasole"), ["00040000001B5100"] = Tr.T($"Pokémon Ultraluna"),
     };
 
     /// <summary>Lists the saves PKHeX can open inside an Azurii zip.</summary>
@@ -106,27 +106,27 @@ public static partial class AzuriiZip
                 {
                     var data = ReadAll(e);
                     if (!SaveUtil.TryGetSaveFile((Memory<byte>)data, out var sav)) continue;
-                    if (game.Length == 0) game = "Pokémon " + GameInfo.GetVersionName(sav.Version);
+                    if (game.Length == 0) game = Tr.T($"Pokémon ") + GameInfo.GetVersionName(sav.Version);
                 }
                 catch { continue; }
                 list.Add(new Candidate(e.FullName, titleId, game, e.Length));
             }
             return ("backup", list, ReadJson(bm));
         }
-        throw new EngineException("Questo zip non è un salvataggio o un backup di Azurii.");
+        throw new EngineException(Tr.T($"Questo zip non è un salvataggio o un backup di Azurii."));
     }
 
     public static (SaveFile sav, Container container) Load(string path, string? entry)
     {
         var (kind, saves, manifest) = Inspect(path);
         if (saves.Count == 0)
-            throw new EngineException(kind == "backup" ? "Nel backup non c'è nessun salvataggio Pokémon." : "Lo zip non contiene dati di salvataggio.");
-        var pick = entry is null ? saves[0] : saves.FirstOrDefault(s => s.Entry == entry) ?? throw new EngineException("Salvataggio non trovato nello zip.");
+            throw new EngineException(kind == "backup" ? Tr.T($"Nel backup non c'è nessun salvataggio Pokémon.") : Tr.T($"Lo zip non contiene dati di salvataggio."));
+        var pick = entry is null ? saves[0] : saves.FirstOrDefault(s => s.Entry == entry) ?? throw new EngineException(Tr.T($"Salvataggio non trovato nello zip."));
 
         using var zip = ZipFile.OpenRead(path);
         var data = ReadAll(zip.GetEntry(pick.Entry)!);
         if (!SaveUtil.TryGetSaveFile((Memory<byte>)data, out var sav))
-            throw new EngineException("Il salvataggio contenuto nello zip non è un gioco Pokémon riconosciuto.");
+            throw new EngineException(Tr.T($"Il salvataggio contenuto nello zip non è un gioco Pokémon riconosciuto."));
         var container = new Container
         {
             ZipPath = path,
@@ -217,15 +217,15 @@ public static partial class AzuriiZip
         var namesB = b.Entries.Select(e => e.FullName).ToHashSet();
         var missing = names.Where(n => !namesB.Contains(n)).ToList();
         if (missing.Count > 0)
-            return $"mancano {missing.Count} file nello zip riscritto (es. {missing[0]})";
+            return Tr.T($"mancano {missing.Count} file nello zip riscritto (es. {missing[0]})");
         var entry = b.GetEntry(c.Entry);
-        if (entry is null) return "il salvataggio non è nello zip riscritto";
-        if (!ReadAll(entry).AsSpan().SequenceEqual(expected)) return "il salvataggio nello zip non coincide con quello verificato";
+        if (entry is null) return Tr.T($"il salvataggio non è nello zip riscritto");
+        if (!ReadAll(entry).AsSpan().SequenceEqual(expected)) return Tr.T($"il salvataggio nello zip non coincide con quello verificato");
         foreach (var e in a.Entries)
         {
             if (e.FullName == c.Entry || e.FullName == c.ManifestName || e.FullName.EndsWith('/')) continue;
             if (b.GetEntry(e.FullName) is not { } other || other.Length != e.Length || other.Crc32 != e.Crc32)
-                return $"il file {e.FullName} è cambiato";
+                return Tr.T($"il file {e.FullName} è cambiato");
         }
         return null;
     }

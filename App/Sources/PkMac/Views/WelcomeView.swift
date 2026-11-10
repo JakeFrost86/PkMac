@@ -14,7 +14,7 @@ struct WelcomeView: View {
                 .opacity(appear ? 1 : 0)
 
             VStack(spacing: 8) {
-                Text("L'editor di salvataggi Pokémon, nato per il Mac.")
+                Text(L("L'editor di salvataggi Pokémon, nato per il Mac."))
                     .font(.system(size: 17, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
             }
@@ -26,7 +26,7 @@ struct WelcomeView: View {
                     Button {
                         model.openPanel()
                     } label: {
-                        Label("Apri salvataggio", systemImage: "folder.fill")
+                        Label(L("Apri salvataggio"), systemImage: "folder.fill")
                             .font(.system(size: 15, weight: .semibold, design: .rounded))
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
@@ -36,7 +36,7 @@ struct WelcomeView: View {
                     .disabled(model.engineState != .ready)
 
                     SettingsLink {
-                        Label("Impostazioni", systemImage: "gearshape.fill")
+                        Label(L("Impostazioni"), systemImage: "gearshape.fill")
                             .font(.system(size: 15, weight: .medium, design: .rounded))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 6)
@@ -45,13 +45,13 @@ struct WelcomeView: View {
                 }
             }
 
-            Text("oppure trascina qui main, .sav, .dsv, .dat, .gci, .bin, o uno zip di salvataggio o di backup di Azurii")
+            Text(L("oppure trascina qui main, .sav, .dsv, .dat, .gci, .bin, o uno zip di salvataggio o di backup di Azurii"))
                 .font(.system(size: 12.5, design: .rounded))
                 .foregroundStyle(.tertiary)
 
             if !model.recentFiles.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Recenti").font(.system(size: 12, weight: .semibold, design: .rounded)).foregroundStyle(.secondary)
+                    Text(L("Recenti")).font(.system(size: 12, weight: .semibold, design: .rounded)).foregroundStyle(.secondary)
                     ForEach(model.recentFiles.prefix(5), id: \.self) { path in
                         RecentRow(path: path)
                     }
@@ -65,6 +65,9 @@ struct WelcomeView: View {
                 .padding(.bottom, 18)
         }
         .padding(.horizontal, 40)
+        .overlay(alignment: .topTrailing) {
+            LanguageMenu().padding(18)
+        }
         .onAppear {
             float = true
             withAnimation(.easeOut(duration: 0.8).delay(0.1)) { appear = true }
@@ -114,11 +117,11 @@ struct EngineStatusLine: View {
                 .fill(model.engineState == .ready ? Color.green : (model.engineState == .starting ? .orange : .red))
                 .frame(width: 7, height: 7)
             switch model.engineState {
-            case .starting: Text("Avvio del motore PKHeX…")
+            case .starting: Text(L("Avvio del motore PKHeX…"))
             case .failed(let m): Text(m).lineLimit(1)
             case .ready:
                 if let v = model.hello?.versions {
-                    Text("PKHeX.Core \(v.core) · Auto Legality \(v.alm) · motore \(v.engine)")
+                    Text(L("PKHeX.Core \(v.core) · Auto Legality \(v.alm) · motore \(v.engine)"))
                 }
             }
         }
@@ -187,5 +190,34 @@ struct Spark: Shape {
             p.addQuadCurve(to: CGPoint(x: r.minX, y: c.y), control: c)
             p.addQuadCurve(to: CGPoint(x: c.x, y: r.minY), control: c)
         }
+    }
+}
+
+
+/// Language switch on the first screen: Automatic (macOS language), Italiano, English.
+struct LanguageMenu: View {
+    private let options: [(id: String, title: String)] = [
+        ("system", L("Automatica (lingua di macOS)")), ("it", "Italiano"), ("en", "English"),
+    ]
+
+    var body: some View {
+        Menu {
+            ForEach(options, id: \.id) { o in
+                Button {
+                    Lang.switchTo(o.id)
+                } label: {
+                    if Lang.choice == o.id { Label(o.title, systemImage: "checkmark") } else { Text(o.title) }
+                }
+            }
+            Divider()
+            Text(L("Cambiando lingua PkMac si riavvia."))
+        } label: {
+            Label(Lang.current == "it" ? "Italiano" : "English", systemImage: "globe")
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+        }
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .buttonStyle(.glass)
+        .help(L("Lingua dell'app"))
     }
 }

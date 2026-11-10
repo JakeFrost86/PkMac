@@ -7,7 +7,7 @@ extension AppModel {
     // MARK: - Generic
 
     /// Calls the engine and shows an error toast on failure.
-    func editor<T: Decodable>(_ method: String, _ params: [String: Any] = [:], failure: String = "Operazione non riuscita") async -> T? {
+    func editor<T: Decodable>(_ method: String, _ params: [String: Any] = [:], failure: String = L("Operazione non riuscita")) async -> T? {
         do { return try await call(method, params) } catch {
             toast(.error, failure, error.localizedDescription)
             return nil
@@ -15,7 +15,7 @@ extension AppModel {
     }
 
     /// Like `editor` but for edits: refreshes the save info (dirty flag, undo) afterwards.
-    func edit<T: Decodable>(_ method: String, _ params: [String: Any], failure: String = "Modifica non applicata") async -> T? {
+    func edit<T: Decodable>(_ method: String, _ params: [String: Any], failure: String = L("Modifica non applicata")) async -> T? {
         let r: T? = await editor(method, params, failure: failure)
         if r != nil { try? await refreshInfo() }
         return r
@@ -52,9 +52,9 @@ extension AppModel {
             let to = try? JSONDecoder().decode(SlotRef.self, from: data)
             await afterMutation()
             if !copy, selection == from, let to { await select(to) }
-            toast(.success, copy ? "Copiato nel box \(box + 1)" : "Spostato nel box \(box + 1)")
+            toast(.success, copy ? L("Copiato nel box \(box + 1)") : L("Spostato nel box \(box + 1)"))
         } catch {
-            toast(.error, "Spostamento non riuscito", error.localizedDescription)
+            toast(.error, L("Spostamento non riuscito"), error.localizedDescription)
         }
     }
 
@@ -64,8 +64,8 @@ extension AppModel {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
-        panel.message = "Scegli il secondo salvataggio verso cui (o da cui) trasferire i Pokémon"
-        panel.prompt = "Apri"
+        panel.message = L("Scegli il secondo salvataggio verso cui (o da cui) trasferire i Pokémon")
+        panel.prompt = L("Apri")
         if panel.runModal() == .OK, let url = panel.url {
             Task { await openSecond(url) }
         }
@@ -74,17 +74,17 @@ extension AppModel {
     func openSecond(_ url: URL, entry: String? = nil) async {
         if saveB?.dirty == true {
             let alert = NSAlert()
-            alert.messageText = "Il secondo salvataggio ha modifiche non salvate"
-            alert.addButton(withTitle: "Salva")
-            alert.addButton(withTitle: "Non salvare")
-            alert.addButton(withTitle: "Annulla")
+            alert.messageText = L("Il secondo salvataggio ha modifiche non salvate")
+            alert.addButton(withTitle: L("Salva"))
+            alert.addButton(withTitle: L("Non salvare"))
+            alert.addButton(withTitle: L("Annulla"))
             switch alert.runModal() {
             case .alertFirstButtonReturn: await saveSecond()
             case .alertThirdButtonReturn: return
             default: break
             }
         }
-        await perform("Apro il secondo salvataggio…") {
+        await perform(L("Apro il secondo salvataggio…")) {
             var params: [String: Any] = ["path": url.path, "save": "b"]
             if let entry { params["entry"] = entry }
             let raw = try await send("open", params)
@@ -92,13 +92,13 @@ extension AppModel {
                 // Azurii zip with several saves: take the most recent; the user can reopen another from the menu.
                 let again = try await send("open", ["path": url.path, "save": "b", "entry": first.entry])
                 saveB = try JSONDecoder().decode(SaveInfo.self, from: again)
-                toast(.info, "Zip con più salvataggi", "Ho aperto \(first.game).")
+                toast(.info, L("Zip con più salvataggi"), L("Ho aperto \(first.game)."))
             } else {
                 saveB = try JSONDecoder().decode(SaveInfo.self, from: raw)
             }
             currentBoxB = 0
             try await reloadB()
-            if let b = saveB { toast(.success, "Secondo salvataggio: \(b.game)", "\(b.ot) · \(b.playTime)") }
+            if let b = saveB { toast(.success, L("Secondo salvataggio: \(b.game)"), "\(b.ot) · \(b.playTime)") }
         }
     }
 
@@ -133,10 +133,10 @@ extension AppModel {
 
     func saveSecond() async {
         guard saveB != nil else { return }
-        await perform("Verifico e salvo il secondo salvataggio…") {
+        await perform(L("Verifico e salvo il secondo salvataggio…")) {
             let result: SaveResult = try await call("save", ["backup": true, "save": "b"])
             try await reloadB()
-            toast(.success, "Secondo salvataggio scritto", "Checksum verificati\(result.backup != nil ? ", backup creato" : "").")
+            toast(.success, L("Secondo salvataggio scritto"), L("Checksum verificati\(result.backup != nil ? ", backup creato" : "")."))
         }
     }
 
@@ -155,7 +155,7 @@ extension AppModel {
                 do {
                     try await send("move", ["from": from.ref.json, "to": to.ref.json, "copy": copy, "save": "b"])
                     try await reloadB()
-                } catch { toast(.error, "Spostamento non riuscito", error.localizedDescription) }
+                } catch { toast(.error, L("Spostamento non riuscito"), error.localizedDescription) }
             }
             return
         }
@@ -169,9 +169,9 @@ extension AppModel {
             await reloadTransferA()
             try await reloadB()
             let dest = to.save == "a" ? save?.game : saveB?.game
-            toast(.success, copy ? "Copiato in \(dest ?? "")" : "Trasferito in \(dest ?? "")", "Convertito e verificato per il gioco di destinazione.")
+            toast(.success, copy ? L("Copiato in \(dest ?? "")") : L("Trasferito in \(dest ?? "")"), L("Convertito e verificato per il gioco di destinazione."))
         } catch {
-            toast(.error, "Trasferimento non permesso", error.localizedDescription)
+            toast(.error, L("Trasferimento non permesso"), error.localizedDescription)
         }
     }
 
@@ -181,7 +181,7 @@ extension AppModel {
 
     // MARK: - Bag
 
-    func bag() async -> BagData? { await editor("bag", failure: "Impossibile leggere la borsa") }
+    func bag() async -> BagData? { await editor("bag", failure: L("Impossibile leggere la borsa")) }
 
     func setBag(_ pouches: [BagPouch]) async -> BagData? {
         let payload: [[String: Any]] = pouches.map { p in
@@ -196,7 +196,7 @@ extension AppModel {
 
     // MARK: - Events
 
-    func events() async -> EventsData? { await editor("events", failure: "Impossibile leggere gli eventi") }
+    func events() async -> EventsData? { await editor("events", failure: L("Impossibile leggere gli eventi")) }
 
     func setEvents(flags: [Int: Bool], system: [Int: Bool], work: [Int: Int]) async -> EventsData? {
         let r: EventsData? = await edit("eventsSet", [
@@ -209,7 +209,7 @@ extension AppModel {
 
     // MARK: - Pokédex
 
-    func dex() async -> DexData? { await editor("dex", failure: "Impossibile leggere il Pokédex") }
+    func dex() async -> DexData? { await editor("dex", failure: L("Impossibile leggere il Pokédex")) }
 
     func setDex(action: String? = nil, changes: [[String: Any]] = []) async -> DexData? {
         var p: [String: Any] = ["changes": changes]
@@ -219,27 +219,27 @@ extension AppModel {
 
     // MARK: - Mystery gifts
 
-    func giftAlbum() async -> GiftAlbum? { await editor("giftAlbum", failure: "Impossibile leggere i doni segreti") }
+    func giftAlbum() async -> GiftAlbum? { await editor("giftAlbum", failure: L("Impossibile leggere i doni segreti")) }
 
     func giftDatabase(query: String) async -> GiftDb? {
-        await editor("giftDb", ["query": query, "limit": 600], failure: "Database dei doni non disponibile")
+        await editor("giftDb", ["query": query, "limit": 600], failure: L("Database dei doni non disponibile"))
     }
 
     func giftDetail(_ id: Int) async -> GiftDetail? { try? await call("giftDb", ["detail": id]) }
 
     func receiveGift(_ id: Int, at ref: SlotRef? = nil) async {
-        await perform("Genero il Pokémon del dono…") {
+        await perform(L("Genero il Pokémon del dono…")) {
             var p: [String: Any] = ["id": id]
             if let ref { p["ref"] = ref.json }
             _ = try await send("giftReceive", p)
             await afterMutation()
-            toast(.success, "Pokémon evento aggiunto", "Lo trovi nel primo slot libero dei box.")
+            toast(.success, L("Pokémon evento aggiunto"), L("Lo trovi nel primo slot libero dei box."))
         }
     }
 
     func giftToAlbum(_ id: Int, slot: Int = -1) async -> GiftAlbum? {
-        let r: GiftAlbum? = await edit("giftToAlbum", ["id": id, "slot": slot], failure: "Dono non inserito")
-        if r != nil { toast(.success, "Carta aggiunta all'album", "Ritirala dal fattorino nel gioco.") }
+        let r: GiftAlbum? = await edit("giftToAlbum", ["id": id, "slot": slot], failure: L("Dono non inserito"))
+        if r != nil { toast(.success, L("Carta aggiunta all'album"), L("Ritirala dal fattorino nel gioco.")) }
         return r
     }
 
@@ -250,14 +250,14 @@ extension AppModel {
     func importGiftFile() async -> Bool {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = false
-        panel.message = "Scegli un file dono segreto (.wc9, .wc8, .wb7, .wc7, .wc6, .pgf, .pcd, .pgt, .wa8…)"
+        panel.message = L("Scegli un file dono segreto (.wc9, .wc8, .wb7, .wc7, .wc6, .pgf, .pcd, .pgt, .wa8…)")
         guard panel.runModal() == .OK, let url = panel.url else { return false }
         var ok = false
-        await perform("Importo il dono…") {
+        await perform(L("Importo il dono…")) {
             _ = try await send("giftImportFile", ["path": url.path])
             await afterMutation()
             ok = true
-            toast(.success, "Dono importato", url.lastPathComponent)
+            toast(.success, L("Dono importato"), url.lastPathComponent)
         }
         return ok
     }
@@ -265,7 +265,7 @@ extension AppModel {
     // MARK: - Blocks & inspector
 
     func blocks(query: String, valuesOnly: Bool) async -> BlocksData? {
-        await editor("blocks", ["query": query, "valuesOnly": valuesOnly], failure: "Impossibile leggere i blocchi")
+        await editor("blocks", ["query": query, "valuesOnly": valuesOnly], failure: L("Impossibile leggere i blocchi"))
     }
 
     func setBlock(key: String, value: Any) async -> Bool {
@@ -274,7 +274,7 @@ extension AppModel {
             try? await refreshInfo()
             return true
         } catch {
-            toast(.error, "Valore non salvato", error.localizedDescription)
+            toast(.error, L("Valore non salvato"), error.localizedDescription)
             return false
         }
     }
@@ -282,7 +282,7 @@ extension AppModel {
     func inspect(target: [String: Any], path: [String]) async -> InspectData? {
         var p = target
         p["path"] = path
-        return await editor("inspect", p, failure: "Impossibile leggere i dati")
+        return await editor("inspect", p, failure: L("Impossibile leggere i dati"))
     }
 
     func inspectSet(target: [String: Any], path: [String], prop: String, value: Any) async -> [InspectProp]? {

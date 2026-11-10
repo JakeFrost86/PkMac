@@ -22,6 +22,11 @@
 	<string>AppIcon</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>it</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>it</string>
+		<string>en</string>
+	</array>
 	<key>LSMinimumSystemVersion</key>
 	<string>26.0</string>
 	<key>LSApplicationCategoryType</key>

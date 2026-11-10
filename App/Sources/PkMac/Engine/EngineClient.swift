@@ -53,7 +53,7 @@ final class EngineClient: @unchecked Sendable {
         }
         p.terminationHandler = { [weak self] proc in
             guard let self else { return }
-            self.failAll(EngineError(message: "Il motore PKHeX si è chiuso (codice \(proc.terminationStatus))."))
+            self.failAll(EngineError(message: L("Il motore PKHeX si è chiuso (codice \(proc.terminationStatus)).")))
             self.onExit?(proc.terminationStatus)
         }
         try p.run()
@@ -80,7 +80,7 @@ final class EngineClient: @unchecked Sendable {
             return try JSONDecoder().decode(T.self, from: data)
         } catch {
             Log.app("decode \(method) failed: \(error)\n\(String(data: data, encoding: .utf8)?.prefix(800) ?? "")")
-            throw EngineError(message: "Risposta inattesa dal motore (\(method)).")
+            throw EngineError(message: L("Risposta inattesa dal motore (\(method))."))
         }
     }
 
@@ -90,7 +90,7 @@ final class EngineClient: @unchecked Sendable {
     }
 
     private func raw(_ method: String, _ params: [String: Any]) async throws -> Data {
-        guard let stdin, isRunning else { throw EngineError(message: "Il motore PKHeX non è in esecuzione.") }
+        guard let stdin, isRunning else { throw EngineError(message: L("Il motore PKHeX non è in esecuzione.")) }
         return try await withCheckedThrowingContinuation { cont in
             lock.lock()
             let id = nextID

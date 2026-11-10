@@ -34,7 +34,7 @@ struct MainView: View {
                     .inspectorColumnWidth(min: 360, ideal: 410, max: 520)
             }
         }
-        .searchable(text: $model.searchText, placement: .toolbar, prompt: "Cerca Pokémon, soprannome, OT… o \"shiny\", \"illegale\"")
+        .searchable(text: $model.searchText, placement: .toolbar, prompt: L("Cerca Pokémon, soprannome, OT… o \"shiny\", \"illegale\""))
         .onChange(of: model.searchText) { _, _ in
             Task { await model.search() }
         }
@@ -47,7 +47,7 @@ struct MainView: View {
 
     private var subtitle: String {
         guard let s = model.save else { return "" }
-        return "\(s.ot) · ID \(s.tid)" + (s.dirty ? " · modificato" : "")
+        return L("\(s.ot) · ID \(s.tid)") + (s.dirty ? L(" · modificato") : "")
     }
 
     @ViewBuilder private var content: some View {
@@ -73,22 +73,22 @@ struct MainView: View {
 
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .navigation) {
-            Button { Task { await model.undo() } } label: { Label("Annulla", systemImage: "arrow.uturn.backward") }
+            Button { Task { await model.undo() } } label: { Label(L("Annulla"), systemImage: "arrow.uturn.backward") }
                 .disabled(model.save?.undo == nil)
-                .help(model.save?.undo.map { "Annulla: \($0)" } ?? "Niente da annullare")
-            Button { Task { await model.redo() } } label: { Label("Ripeti", systemImage: "arrow.uturn.forward") }
+                .help(model.save?.undo.map { L("Annulla: \($0)") } ?? L("Niente da annullare"))
+            Button { Task { await model.redo() } } label: { Label(L("Ripeti"), systemImage: "arrow.uturn.forward") }
                 .disabled(model.save?.redo == nil)
         }
         ToolbarItemGroup(placement: .primaryAction) {
             ChecksumIndicator()
-            Button { model.openPanel() } label: { Label("Apri", systemImage: "folder") }
-                .help("Apri un altro salvataggio (⌘O)")
+            Button { model.openPanel() } label: { Label(L("Apri"), systemImage: "folder") }
+                .help(L("Apri un altro salvataggio (⌘O)"))
             Button { Task { await model.saveFile() } } label: {
-                Label("Salva", systemImage: model.save?.dirty == true ? "square.and.arrow.down.fill" : "square.and.arrow.down")
+                Label(L("Salva"), systemImage: model.save?.dirty == true ? "square.and.arrow.down.fill" : "square.and.arrow.down")
             }
-            .help("Salva con verifica dei checksum e backup automatico (⌘S)")
+            .help(L("Salva con verifica dei checksum e backup automatico (⌘S)"))
             .disabled(model.save == nil)
-            Button { showInspector.toggle() } label: { Label("Dettagli", systemImage: "sidebar.trailing") }
+            Button { showInspector.toggle() } label: { Label(L("Dettagli"), systemImage: "sidebar.trailing") }
         }
     }
 }
@@ -103,15 +103,15 @@ struct ChecksumIndicator: View {
         Button {
             show.toggle()
         } label: {
-            Label(ok ? "Checksum OK" : "Checksum", systemImage: ok ? "checkmark.shield.fill" : "exclamationmark.shield.fill")
+            Label(ok ? L("Checksum OK") : L("Checksum"), systemImage: ok ? "checkmark.shield.fill" : "exclamationmark.shield.fill")
                 .foregroundStyle(ok ? .green : .orange)
         }
-        .help(ok ? "I checksum del salvataggio sono validi" : "Il file originale aveva checksum non validi")
+        .help(ok ? L("I checksum del salvataggio sono validi") : L("Il file originale aveva checksum non validi"))
         .popover(isPresented: $show) {
             VStack(alignment: .leading, spacing: 10) {
-                Label("Integrità del salvataggio", systemImage: "shield.lefthalf.filled")
+                Label(L("Integrità del salvataggio"), systemImage: "shield.lefthalf.filled")
                     .font(.headline)
-                Text("Prima di ogni salvataggio PkMac ricalcola i checksum, rilegge il file generato, confronta box e squadra, crea un backup e verifica la scrittura byte per byte.")
+                Text(L("Prima di ogni salvataggio PkMac ricalcola i checksum, rilegge il file generato, confronta box e squadra, crea un backup e verifica la scrittura byte per byte."))
                     .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 if let s = model.save, !s.checksumValid {
                     Text(s.checksumInfo).font(.caption.monospaced()).foregroundStyle(.orange)
@@ -129,7 +129,7 @@ struct SearchResultsPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text(model.searchResults.isEmpty ? "Nessun risultato" : "\(model.searchResults.count) risultati")
+                Text(model.searchResults.isEmpty ? L("Nessun risultato") : "\(model.searchResults.count) risultati")
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(.secondary)
                 Spacer()

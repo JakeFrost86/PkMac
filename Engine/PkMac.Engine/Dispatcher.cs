@@ -33,17 +33,17 @@ public sealed class Dispatcher
                 versions = Versions.Get(),
                 plugins = new[]
                 {
-                    new { id = "legality", name = "Controllo legalità", source = "PKHeX.Core" },
-                    new { id = "checksum", name = "Verifica checksum al salvataggio", source = "PkMac" },
-                    new { id = "alm", name = "Auto Legality Mod", source = "santacrab2/PKHeX-Plugins" },
+                    new { id = "legality", name = Tr.T($"Controllo legalità"), source = "PKHeX.Core" },
+                    new { id = "checksum", name = Tr.T($"Verifica checksum al salvataggio"), source = "PkMac" },
+                    new { id = "alm", name = Tr.T($"Auto Legality Mod"), source = "santacrab2/PKHeX-Plugins" },
                     new { id = "livehex", name = "LiveHeX", source = "santacrab2/PKHeX-Plugins" },
-                    new { id = "homelive", name = "HOME Live", source = "Manu098vm/HOME-Live-Plugin" },
+                    new { id = "homelive", name = Tr.T($"HOME Live"), source = "Manu098vm/HOME-Live-Plugin" },
                     new { id = "pokefilename", name = "PokeFilename", source = "architdate/PokeFilename" },
-                    new { id = "sorting", name = "Ordinamento Pokédex regionali", source = "foohyfooh/PKHeXPluginPile" },
-                    new { id = "special", name = "Pokémon speciali", source = "foohyfooh/PKHeXPluginPile" },
+                    new { id = "sorting", name = Tr.T($"Ordinamento Pokédex regionali"), source = "foohyfooh/PKHeXPluginPile" },
+                    new { id = "special", name = Tr.T($"Pokémon speciali"), source = "foohyfooh/PKHeXPluginPile" },
                 },
             },
-            ["setLanguage"] = p => { _s.SetLanguage(p.Str("lang")); _b.SetLanguage(p.Str("lang")); return true; },
+            ["setLanguage"] = p => { _s.SetLanguage(p.Str("lang")); _b.SetLanguage(p.Str("lang")); Tr.Set(p.Str("lang"), p.OptStr("table")); return true; },
 
             // ---- save ----
             ["open"] = p => SaveIO.Open(S(p), p.Str("path"), p.OptStr("entry")),
@@ -134,6 +134,7 @@ public sealed class Dispatcher
             ["blockSet"] = p => Blocks.Set(S(p), p.Str("key"), p.Raw["value"]!),
             ["inspect"] = p => Inspector.Inspect(S(p), p),
             ["inspectSet"] = p => Inspector.Set(S(p), p),
+            ["originLists"] = p => Describe.OriginLists(S(p), p.Int("version", 0), p.Bool("egg")),
             ["ribbons"] = p => Storage.Ribbons(S(p), p.Slot()),
             ["ribbonsSet"] = p => Storage.SetRibbons(S(p), p.Slot(), p),
 
@@ -156,7 +157,7 @@ public sealed class Dispatcher
     public object? Invoke(string method, Params p)
     {
         if (!_methods.TryGetValue(method, out var handler))
-            throw new EngineException($"Metodo sconosciuto: {method}");
+            throw new EngineException(Tr.T($"Metodo sconosciuto: {method}"));
         _gate.Wait();
         try { return handler(p); }
         finally { _gate.Release(); }

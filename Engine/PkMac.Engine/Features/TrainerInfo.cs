@@ -71,7 +71,7 @@ public static class TrainerInfo
         {
             ot = ot.Trim();
             if (ot.Length == 0 || ot.Length > sav.MaxStringLengthTrainer)
-                throw new EngineException($"Nome allenatore non valido (1–{sav.MaxStringLengthTrainer} caratteri).");
+                throw new EngineException(Tr.T($"Nome allenatore non valido (1–{sav.MaxStringLengthTrainer} caratteri)."));
             sav.OT = ot;
         }
         if (p.Has("gender"))
@@ -79,13 +79,13 @@ public static class TrainerInfo
         if (p.Has("tid"))
         {
             var tid = p.Int("tid");
-            if (tid < 0 || tid > tidMax) throw new EngineException($"ID allenatore non valido (0–{tidMax}).");
+            if (tid < 0 || tid > tidMax) throw new EngineException(Tr.T($"ID allenatore non valido (0–{tidMax})."));
             sav.DisplayTID = (uint)tid;
         }
         if (p.Has("sid") && hasSid)
         {
             var sid = p.Int("sid");
-            if (sid < 0 || sid > sidMax) throw new EngineException($"ID segreto non valido (0–{sidMax}).");
+            if (sid < 0 || sid > sidMax) throw new EngineException(Tr.T($"ID segreto non valido (0–{sidMax})."));
             sav.DisplaySID = (uint)sid;
         }
         if (p.Has("money"))

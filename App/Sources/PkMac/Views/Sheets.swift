@@ -11,8 +11,8 @@ struct ShowdownImportSheet: View {
             HStack {
                 Image(systemName: "doc.on.clipboard.fill").font(.title2).foregroundStyle(.orange)
                 VStack(alignment: .leading) {
-                    Text("Importa set Showdown").font(.system(size: 20, weight: .bold, design: .rounded))
-                    Text("Auto Legality genera ogni set come Pokémon legale nel box \(model.currentBox + 1).").font(.callout).foregroundStyle(.secondary)
+                    Text(L("Importa set Showdown")).font(.system(size: 20, weight: .bold, design: .rounded))
+                    Text(L("Auto Legality genera ogni set come Pokémon legale nel box \(model.currentBox + 1).")).font(.callout).foregroundStyle(.secondary)
                 }
             }
             TextEditor(text: $text)
@@ -23,7 +23,7 @@ struct ShowdownImportSheet: View {
                 .frame(minHeight: 240)
                 .overlay(alignment: .topLeading) {
                     if text.isEmpty {
-                        Text("Garchomp @ Choice Scarf\nAbility: Rough Skin\nTera Type: Steel\nEVs: 252 Atk / 4 SpD / 252 Spe\nJolly Nature\n- Earthquake\n- Outrage\n- Stone Edge\n- Stealth Rock\n\noppure un link https://pokepast.es/…")
+                        Text(L("Garchomp @ Choice Scarf\nAbility: Rough Skin\nTera Type: Steel\nEVs: 252 Atk / 4 SpD / 252 Spe\nJolly Nature\n- Earthquake\n- Outrage\n- Stone Edge\n- Stealth Rock\n\noppure un link https://pokepast.es/…"))
                             .font(.system(size: 12.5, design: .monospaced))
                             .foregroundStyle(.tertiary)
                             .padding(15)
@@ -51,13 +51,13 @@ struct ShowdownImportSheet: View {
             }
 
             HStack {
-                Button("Incolla dagli appunti") { text = NSPasteboard.general.string(forType: .string) ?? text }
+                Button(L("Incolla dagli appunti")) { text = NSPasteboard.general.string(forType: .string) ?? text }
                     .buttonStyle(.glass)
                 Spacer()
-                Button("Chiudi") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button(L("Chiudi")) { dismiss() }.keyboardShortcut(.cancelAction)
                 Button {
                     Task { results = await model.importShowdown(text) }
-                } label: { Label("Genera", systemImage: "wand.and.stars") }
+                } label: { Label(L("Genera"), systemImage: "wand.and.stars") }
                 .buttonStyle(.glassProminent)
                 .keyboardShortcut(.defaultAction)
                 .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -69,12 +69,12 @@ struct ShowdownImportSheet: View {
 
     private func label(_ r: ImportResult) -> String {
         switch r.status {
-        case "ok": r.legal == true ? "legale" : "creato, ma non del tutto legale"
-        case "timeout": "tempo scaduto"
-        case "nospace": "nessuno slot libero"
-        case "invalid": "righe non valide: \(r.lines?.joined(separator: ", ") ?? "")"
-        case "mismatch": "versione del core non compatibile"
-        default: "non generato"
+        case "ok": r.legal == true ? "legale" : L("creato, ma non del tutto legale")
+        case "timeout": L("tempo scaduto")
+        case "nospace": L("nessuno slot libero")
+        case "invalid": L("righe non valide: \(r.lines?.joined(separator: ", ") ?? "")")
+        case "mismatch": L("versione del core non compatibile")
+        default: L("non generato")
         }
     }
 }
@@ -102,7 +102,7 @@ struct CreatePokemonSheet: View {
     var body: some View {
         HStack(spacing: 0) {
             VStack(spacing: 0) {
-                TextField("Cerca per nome o numero", text: $query)
+                TextField(L("Cerca per nome o numero"), text: $query)
                     .textFieldStyle(.roundedBorder)
                     .padding(12)
                 ScrollView {
@@ -140,28 +140,28 @@ struct CreatePokemonSheet: View {
                     Text(s.t).font(.system(size: 22, weight: .heavy, design: .rounded))
                     HStack { ForEach(info?.types ?? [], id: \.self) { TypePill(type: PokeType(key: $0)) } }
                     if let forms = info?.forms, forms.count > 1 {
-                        Picker("Forma", selection: $form) {
-                            ForEach(Array(forms.enumerated()), id: \.offset) { i, f in Text(f.isEmpty ? "Normale" : f).tag(i) }
+                        Picker(L("Forma"), selection: $form) {
+                            ForEach(Array(forms.enumerated()), id: \.offset) { i, f in Text(f.isEmpty ? L("Normale") : f).tag(i) }
                         }
                         .frame(width: 240)
                     }
-                    Toggle(isOn: $shiny) { Label("Cromatico", systemImage: "sparkles") }.toggleStyle(.switch)
+                    Toggle(isOn: $shiny) { Label(L("Cromatico"), systemImage: "sparkles") }.toggleStyle(.switch)
                     if info?.inGame == false {
-                        StatusBadge(kind: .warn, text: "Non presente in questo gioco")
+                        StatusBadge(kind: .warn, text: L("Non presente in questo gioco"))
                     }
                 } else {
                     Spacer()
-                    Text("Scegli una specie").foregroundStyle(.secondary)
+                    Text(L("Scegli una specie")).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Text(target.map { "Verrà creato in \($0.label)" } ?? "Nessuno slot libero nel box").font(.caption).foregroundStyle(.secondary)
+                Text(target.map { L("Verrà creato in \($0.label)") } ?? L("Nessuno slot libero nel box")).font(.caption).foregroundStyle(.secondary)
                 HStack {
-                    Button("Annulla") { dismiss() }.keyboardShortcut(.cancelAction)
+                    Button(L("Annulla")) { dismiss() }.keyboardShortcut(.cancelAction)
                     Button {
                         guard let s = species, let target else { return }
                         dismiss()
                         Task { await model.createPokemon(species: s.v, form: form, shiny: shiny, at: target) }
-                    } label: { Label("Crea legale", systemImage: "wand.and.stars") }
+                    } label: { Label(L("Crea legale"), systemImage: "wand.and.stars") }
                     .buttonStyle(.glassProminent)
                     .keyboardShortcut(.defaultAction)
                     .disabled(species == nil || target == nil)
@@ -200,7 +200,7 @@ struct SaveReportView: View {
                     .contentTransition(.symbolEffect(.replace))
                     .symbolEffect(.bounce, value: sealed)
             }
-            Text("Salvataggio verificato").font(.system(size: 22, weight: .heavy, design: .rounded))
+            Text(L("Salvataggio verificato")).font(.system(size: 22, weight: .heavy, design: .rounded))
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(Array(result.steps.enumerated()), id: \.offset) { i, step in
                     HStack(spacing: 10) {
@@ -217,17 +217,17 @@ struct SaveReportView: View {
 
             VStack(spacing: 4) {
                 Text(URL(fileURLWithPath: result.path).lastPathComponent).font(.system(size: 12, weight: .semibold, design: .monospaced))
-                Text("SHA-256 \(result.sha256)…").font(.system(size: 10.5, design: .monospaced)).foregroundStyle(.secondary)
+                Text(L("SHA-256 \(result.sha256)…")).font(.system(size: 10.5, design: .monospaced)).foregroundStyle(.secondary)
             }
             HStack {
                 if let b = result.backup {
                     Button { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: b)]) } label: {
-                        Label("Mostra backup", systemImage: "clock.arrow.circlepath")
+                        Label(L("Mostra backup"), systemImage: "clock.arrow.circlepath")
                     }
                     .buttonStyle(.glass)
                 }
                 Spacer()
-                Button("Fatto") { dismiss() }
+                Button(L("Fatto")) { dismiss() }
                     .buttonStyle(.glassProminent)
                     .keyboardShortcut(.defaultAction)
             }

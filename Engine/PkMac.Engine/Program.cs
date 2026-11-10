@@ -59,7 +59,7 @@ public static class Program
             {
                 var req = JsonNode.Parse(line)!.AsObject();
                 id = req["id"]?.DeepClone();
-                var method = req["method"]?.GetValue<string>() ?? throw new EngineException("Richiesta senza metodo.");
+                var method = req["method"]?.GetValue<string>() ?? throw new EngineException(Tr.T($"Richiesta senza metodo."));
                 var p = req["params"] as JsonObject ?? new JsonObject();
                 if (method == "quit")
                 {

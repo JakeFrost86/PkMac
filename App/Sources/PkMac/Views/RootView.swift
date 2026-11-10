@@ -193,8 +193,8 @@ struct DropHint: View {
                 VStack(spacing: 10) {
                     Image(systemName: "arrow.down.doc.fill").font(.system(size: 42))
                         .foregroundStyle(Theme.brand)
-                    Text("Rilascia per aprire").font(.system(size: 20, weight: .bold, design: .rounded))
-                    Text("Salvataggi o file .pk").foregroundStyle(.secondary)
+                    Text(L("Rilascia per aprire")).font(.system(size: 20, weight: .bold, design: .rounded))
+                    Text(L("Salvataggi o file .pk")).foregroundStyle(.secondary)
                 }
             )
             .padding(18)
@@ -210,12 +210,12 @@ struct EngineFailedView: View {
             Image(systemName: "bolt.horizontal.circle.fill")
                 .font(.system(size: 52))
                 .foregroundStyle(.orange)
-            Text("Il motore PKHeX non è partito").font(.title2.bold())
+            Text(L("Il motore PKHeX non è partito")).font(.title2.bold())
             Text(message).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 460)
             HStack {
-                Button("Riprova") { Task { await model.startEngine() } }
+                Button(L("Riprova")) { Task { await model.startEngine() } }
                     .buttonStyle(.glassProminent)
-                Button("Usa il motore incluso") {
+                Button(L("Usa il motore incluso")) {
                     EngineManager.resetToBundled()
                     Task { await model.startEngine() }
                 }
@@ -242,11 +242,11 @@ struct ZipChoiceSheet: View {
                     .font(.system(size: 26))
                     .foregroundStyle(Color(hex: 0x3FB6FF))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Backup di Azurii").font(.system(size: 20, weight: .bold, design: .rounded))
+                    Text(L("Backup di Azurii")).font(.system(size: 20, weight: .bold, design: .rounded))
                     Text(URL(fileURLWithPath: choice.path).lastPathComponent).font(.callout).foregroundStyle(.secondary)
                 }
             }
-            Text("Contiene \(choice.saves.count) salvataggi Pokémon. Scegli quello da aprire: quando salvi, PkMac aggiorna solo lui dentro lo zip.")
+            Text(L("Contiene \(choice.saves.count) salvataggi Pokémon. Scegli quello da aprire: quando salvi, PkMac aggiorna solo lui dentro lo zip."))
                 .foregroundStyle(.secondary)
             VStack(spacing: 8) {
                 ForEach(choice.saves) { s in
@@ -260,7 +260,7 @@ struct ZipChoiceSheet: View {
                                 .background(.primary.opacity(0.06), in: .rect(cornerRadius: 10))
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(s.game).font(.system(size: 14, weight: .semibold, design: .rounded))
-                                Text("Title ID \(s.titleId) · \(ByteCountFormatter.string(fromByteCount: Int64(s.size), countStyle: .file))")
+                                Text(L("Title ID \(s.titleId) · \(ByteCountFormatter.string(fromByteCount: Int64(s.size), countStyle: .file))"))
                                     .font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
                             }
                             Spacer()
@@ -273,7 +273,7 @@ struct ZipChoiceSheet: View {
                     .buttonStyle(.plain)
                 }
             }
-            HStack { Spacer(); Button("Annulla") { dismiss() }.keyboardShortcut(.cancelAction) }
+            HStack { Spacer(); Button(L("Annulla")) { dismiss() }.keyboardShortcut(.cancelAction) }
         }
         .padding(24)
         .frame(width: 480)

@@ -7,8 +7,8 @@ struct TransferView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Header(title: "Trasferisci tra salvataggi",
-                   subtitle: "Trascina un Pokémon da un gioco all'altro · ⌥ per copiare · i trasferimenti impossibili vengono bloccati",
+            Header(title: L("Trasferisci tra salvataggi"),
+                   subtitle: L("Trascina un Pokémon da un gioco all'altro · ⌥ per copiare · i trasferimenti impossibili vengono bloccati"),
                    symbol: "arrow.left.arrow.right.square.fill", tint: AppSection.transfer.tint)
             HStack(alignment: .top, spacing: 18) {
                 SavePane(side: "a")
@@ -54,7 +54,7 @@ private struct SavePane: View {
                     .transition(.opacity)
                 }
                 if info.hasParty {
-                    Text("Squadra").font(.system(size: 12, weight: .bold, design: .rounded)).foregroundStyle(.secondary)
+                    Text(L("Squadra")).font(.system(size: 12, weight: .bold, design: .rounded)).foregroundStyle(.secondary)
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 7), count: 6), spacing: 7) {
                         ForEach(party) { s in TransferCell(side: side, slot: s) }
                     }
@@ -77,20 +77,20 @@ private struct SavePane: View {
             GameBadge(game: info.versionKey, generation: info.generation)
             VStack(alignment: .leading, spacing: 1) {
                 Text(info.game).font(.system(size: 15, weight: .bold, design: .rounded))
-                Text("\(info.ot) · Gen \(info.generation)\(info.dirty ? " · modificato" : "")")
+                Text(L("\(info.ot) · Gen \(info.generation)\(info.dirty ? " · modificato" : "")"))
                     .font(.system(size: 11)).foregroundStyle(.secondary)
             }
             Spacer()
             if side == "b" {
                 Menu {
-                    Button { model.openSecondPanel() } label: { Label("Apri un altro…", systemImage: "folder") }
-                    Button { Task { await model.closeSecond() } } label: { Label("Chiudi", systemImage: "xmark") }
+                    Button { model.openSecondPanel() } label: { Label(L("Apri un altro…"), systemImage: "folder") }
+                    Button { Task { await model.closeSecond() } } label: { Label(L("Chiudi"), systemImage: "xmark") }
                 } label: { Image(systemName: "ellipsis.circle") }
                 .menuIndicator(.hidden).buttonStyle(.glass)
-                Button { Task { await model.saveSecond() } } label: { Label("Salva", systemImage: "square.and.arrow.down") }
+                Button { Task { await model.saveSecond() } } label: { Label(L("Salva"), systemImage: "square.and.arrow.down") }
                     .buttonStyle(.glassProminent).disabled(!info.dirty)
             } else {
-                Button { Task { await model.saveFile() } } label: { Label("Salva", systemImage: "square.and.arrow.down") }
+                Button { Task { await model.saveFile() } } label: { Label(L("Salva"), systemImage: "square.and.arrow.down") }
                     .buttonStyle(.glass).disabled(!info.dirty)
             }
         }
@@ -101,10 +101,10 @@ private struct SavePane: View {
             Image(systemName: "externaldrive.badge.plus")
                 .font(.system(size: 46, weight: .light))
                 .foregroundStyle(Theme.brand)
-            Text("Apri un secondo salvataggio").font(.system(size: 17, weight: .bold, design: .rounded))
-            Text("Anche di un'altra generazione o uno zip di Azurii. Puoi trasferire solo i Pokémon che il gioco di destinazione può davvero ricevere.")
+            Text(L("Apri un secondo salvataggio")).font(.system(size: 17, weight: .bold, design: .rounded))
+            Text(L("Anche di un'altra generazione o uno zip di Azurii. Puoi trasferire solo i Pokémon che il gioco di destinazione può davvero ricevere."))
                 .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 320)
-            Button { model.openSecondPanel() } label: { Label("Scegli il file…", systemImage: "folder") }
+            Button { model.openSecondPanel() } label: { Label(L("Scegli il file…"), systemImage: "folder") }
                 .buttonStyle(.glassProminent).controlSize(.large)
         }
         .frame(maxWidth: .infinity, minHeight: 420)
@@ -170,10 +170,10 @@ private struct TransferCell: View {
     }
 
     private var help: String {
-        guard !slot.empty else { return "Slot vuoto · rilascia qui un Pokémon" }
-        var s = "\(slot.displayName) · Lv. \(slot.level ?? 0)"
+        guard !slot.empty else { return L("Slot vuoto · rilascia qui un Pokémon") }
+        var s = L("\(slot.displayName) · Lv. \(slot.level ?? 0)")
         if let v = verdict {
-            s += v.ok ? "\n✓ Trasferibile nell'altro gioco" : "\n✕ \(v.problem ?? "Non trasferibile")"
+            s += v.ok ? L("\n✓ Trasferibile nell'altro gioco") : "\n✕ \(v.problem ?? "Non trasferibile")"
         }
         return s
     }

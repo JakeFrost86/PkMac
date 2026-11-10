@@ -137,7 +137,7 @@ final class Updater {
     private func download(_ url: URL, to dest: URL, label: String) async throws {
         step(label, 0.1)
         let (tmp, resp) = try await session.download(from: url)
-        guard (resp as? HTTPURLResponse)?.statusCode == 200 else { throw EngineError(message: "Download non riuscito (\(url.lastPathComponent)).") }
+        guard (resp as? HTTPURLResponse)?.statusCode == 200 else { throw EngineError(message: L("Download non riuscito (\(url.lastPathComponent)).")) }
         try? FileManager.default.removeItem(at: dest)
         try FileManager.default.moveItem(at: tmp, to: dest)
     }
@@ -152,23 +152,23 @@ final class Updater {
     /// Returns the new manifest when activated.
     func installCore(version: String, savePath: String?) async -> EngineManifest? {
         do {
-            guard let currentDir = EngineManager.activeDirectory() else { throw EngineError(message: "Motore non trovato.") }
+            guard let currentDir = EngineManager.activeDirectory() else { throw EngineError(message: L("Motore non trovato.")) }
             let base = EngineManager.activeManifest() ?? EngineManager.bundledManifest() ?? EngineManifest(engine: "1.0.0", core: "?")
             let work = try workDir("core")
             defer { try? FileManager.default.removeItem(at: work) }
 
             let v = version.lowercased()
             let nupkg = work.appendingPathComponent("core.nupkg")
-            try await download(URL(string: "https://api.nuget.org/v3-flatcontainer/pkhex.core/\(v)/pkhex.core.\(v).nupkg")!, to: nupkg, label: "Scarico PKHeX.Core \(version) da NuGet…")
+            try await download(URL(string: "https://api.nuget.org/v3-flatcontainer/pkhex.core/\(v)/pkhex.core.\(v).nupkg")!, to: nupkg, label: L("Scarico PKHeX.Core \(version) da NuGet…"))
 
-            step("Estraggo il pacchetto…", 0.35)
+            step(L("Estraggo il pacchetto…"), 0.35)
             let extracted = work.appendingPathComponent("pkg", isDirectory: true)
             try await Shell.ditto(["-x", "-k", nupkg.path, extracted.path])
             guard let dll = Self.bestCoreDLL(in: extracted.appendingPathComponent("lib")) else {
-                throw EngineError(message: "Il pacchetto non contiene una libreria compatibile con .NET 10: serve un nuovo pacchetto motore.")
+                throw EngineError(message: L("Il pacchetto non contiene una libreria compatibile con .NET 10: serve un nuovo pacchetto motore."))
             }
 
-            step("Preparo una copia del motore…", 0.5)
+            step(L("Preparo una copia del motore…"), 0.5)
             let target = AppPaths.engines.appendingPathComponent("engine-\(base.engine)-core-\(version)", isDirectory: true)
             try? FileManager.default.removeItem(at: target)
             try FileManager.default.copyItem(at: currentDir, to: target)
@@ -176,20 +176,20 @@ final class Updater {
             try? FileManager.default.removeItem(at: destDLL)
             try FileManager.default.copyItem(at: dll, to: destDLL)
 
-            step("Eseguo i test di sicurezza (salvataggi, checksum, Auto Legality)…", 0.7)
+            step(L("Eseguo i test di sicurezza (salvataggi, checksum, Auto Legality)…"), 0.7)
             guard let report = await EngineManager.selfTest(dir: target, savePath: savePath) else {
                 try? FileManager.default.removeItem(at: target)
-                throw EngineError(message: "Il nuovo core non si avvia: resto sulla versione attuale.")
+                throw EngineError(message: L("Il nuovo core non si avvia: resto sulla versione attuale."))
             }
             guard report.ok else {
                 try? FileManager.default.removeItem(at: target)
                 let failed = report.checks.filter { !$0.ok }.map { "\($0.name): \($0.detail ?? "")" }.joined(separator: "\n")
-                throw EngineError(message: "Il core \(version) non ha superato i test, resto sulla versione attuale.\n\(failed)")
+                throw EngineError(message: L("Il core \(version) non ha superato i test, resto sulla versione attuale.\n\(failed)"))
             }
 
             let manifest = EngineManifest(engine: base.engine, core: report.versions.core, alm: report.versions.alm, source: "core-update")
             try EngineManager.activate(dir: target, manifest: manifest)
-            phase = .done("PKHeX.Core \(report.versions.core) installato e verificato.")
+            phase = .done(L("PKHeX.Core \(report.versions.core) installato e verificato."))
             return manifest
         } catch {
             phase = .failed(error.localizedDescription)
@@ -218,8 +218,8 @@ final class Updater {
             let work = try workDir("engine")
             defer { try? FileManager.default.removeItem(at: work) }
             let zip = work.appendingPathComponent("engine.zip")
-            try await download(release.asset, to: zip, label: "Scarico il pacchetto motore \(release.version)…")
-            step("Estraggo…", 0.4)
+            try await download(release.asset, to: zip, label: L("Scarico il pacchetto motore \(release.version)…"))
+            step(L("Estraggo…"), 0.4)
             let target = AppPaths.engines.appendingPathComponent("pack-\(release.version)", isDirectory: true)
             try? FileManager.default.removeItem(at: target)
             try await Shell.ditto(["-x", "-k", zip.path, target.path])
@@ -233,14 +233,14 @@ final class Updater {
             _ = try? await Shell.run(URL(fileURLWithPath: "/usr/bin/xattr"), ["-dr", "com.apple.quarantine", root.path])
             try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bin.path)
 
-            step("Eseguo i test di sicurezza…", 0.7)
+            step(L("Eseguo i test di sicurezza…"), 0.7)
             guard let report = await EngineManager.selfTest(dir: root, savePath: savePath), report.ok else {
                 try? FileManager.default.removeItem(at: target)
-                throw EngineError(message: "Il pacchetto motore \(release.version) non ha superato i test: resto sulla versione attuale.")
+                throw EngineError(message: L("Il pacchetto motore \(release.version) non ha superato i test: resto sulla versione attuale."))
             }
             let manifest = EngineManifest(engine: report.versions.engine, core: report.versions.core, alm: report.versions.alm, source: "pack")
             try EngineManager.activate(dir: root, manifest: manifest)
-            phase = .done("Motore \(report.versions.engine) con PKHeX.Core \(report.versions.core) installato.")
+            phase = .done(L("Motore \(report.versions.engine) con PKHeX.Core \(report.versions.core) installato."))
             return manifest
         } catch {
             phase = .failed(error.localizedDescription)
@@ -253,15 +253,15 @@ final class Updater {
         do {
             let work = try workDir("app")
             let zip = work.appendingPathComponent("PkMac.zip")
-            try await download(release.asset, to: zip, label: "Scarico PkMac \(release.version)…")
-            step("Estraggo…", 0.5)
+            try await download(release.asset, to: zip, label: L("Scarico PkMac \(release.version)…"))
+            step(L("Estraggo…"), 0.5)
             let out = work.appendingPathComponent("out", isDirectory: true)
             try await Shell.ditto(["-x", "-k", zip.path, out.path])
             guard let newApp = try FileManager.default.contentsOfDirectory(at: out, includingPropertiesForKeys: nil).first(where: { $0.pathExtension == "app" }),
                   let bundle = Bundle(url: newApp), bundle.bundleIdentifier == Bundle.main.bundleIdentifier else {
-                throw EngineError(message: "L'archivio scaricato non contiene PkMac.")
+                throw EngineError(message: L("L'archivio scaricato non contiene PkMac."))
             }
-            step("Installo e riavvio…", 0.9)
+            step(L("Installo e riavvio…"), 0.9)
             let dest = Bundle.main.bundleURL.path
             let script = work.appendingPathComponent("swap.sh")
             let body = """

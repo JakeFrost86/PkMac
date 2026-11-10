@@ -20,7 +20,7 @@ public sealed class Session
     /// <summary>Edits never rewrite trainer/handler data; imports use PKHeX defaults.</summary>
     public static readonly EntityImportSettings EditSettings = new(EntityImportOption.Disable, EntityImportOption.Enable, EntityImportOption.Disable);
 
-    public SaveFile Sav => Save ?? throw new EngineException("Nessun salvataggio aperto.");
+    public SaveFile Sav => Save ?? throw new EngineException(Tr.T($"Nessun salvataggio aperto."));
 
     public void SetLanguage(string lang)
     {
@@ -70,11 +70,11 @@ public sealed class Session
         if (r.Party)
         {
             if (!sav.HasParty || (uint)r.Slot >= 6)
-                throw new EngineException("Slot squadra non valido.");
+                throw new EngineException(Tr.T($"Slot squadra non valido."));
             return sav.GetPartySlotAtIndex(r.Slot);
         }
         if (!sav.HasBox || (uint)r.Box >= sav.BoxCount || (uint)r.Slot >= sav.BoxSlotCount)
-            throw new EngineException("Slot box non valido.");
+            throw new EngineException(Tr.T($"Slot box non valido."));
         return sav.GetBoxSlotAtIndex(r.Box, r.Slot);
     }
 
@@ -85,15 +85,15 @@ public sealed class Session
     {
         var sav = Sav;
         if (IsLocked(r))
-            throw new EngineException("Questo slot è protetto dal gioco (es. Pokémon in squadra di lotta).");
+            throw new EngineException(Tr.T($"Questo slot è protetto dal gioco (es. Pokémon in squadra di lotta)."));
         if (pk.GetType() != sav.PKMType)
         {
             var converted = EntityConverter.ConvertToType(pk, sav.PKMType, out var res);
-            pk = converted ?? throw new EngineException($"Impossibile convertire il Pokémon per questo gioco ({res}).");
+            pk = converted ?? throw new EngineException(Tr.T($"Impossibile convertire il Pokémon per questo gioco ({res})."));
         }
         if (recordUndo)
         {
-            _undo.Push(new UndoEntry(r, Get(r).Clone(), label ?? "Modifica"));
+            _undo.Push(new UndoEntry(r, Get(r).Clone(), label ?? Tr.T($"Modifica")));
             _redo.Clear();
             if (_undo.Count > 200)
                 TrimUndo();
@@ -111,7 +111,7 @@ public sealed class Session
         var sav = Sav;
         if (recordUndo)
         {
-            _undo.Push(new UndoEntry(r, Get(r).Clone(), "Elimina"));
+            _undo.Push(new UndoEntry(r, Get(r).Clone(), Tr.T($"Elimina")));
             _redo.Clear();
         }
         if (r.Party)
@@ -178,7 +178,7 @@ public sealed class Session
             }
         }
         catch { /* some formats throw for unnamed boxes */ }
-        return $"Box {box + 1}";
+        return Tr.T($"Box {box + 1}");
     }
 }
 

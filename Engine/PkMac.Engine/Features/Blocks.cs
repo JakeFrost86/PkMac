@@ -15,11 +15,11 @@ public static class Blocks
     public static SCBlockMetadata Metadata(SaveFile sav)
     {
         if (sav is not ISCBlockArray arr)
-            throw new EngineException("Questo gioco non usa blocchi di dati.");
+            throw new EngineException(Tr.T($"Questo gioco non usa blocchi di dati."));
         return Meta.GetValue(sav, _ => new SCBlockMetadata(arr.Accessor, [], []));
     }
 
-    private static string TypeLabel(SCBlock b) => b.Type.IsBoolean() ? "Bool" : b.Type.ToString();
+    private static string TypeLabel(SCBlock b) => b.Type.IsBoolean() ? Tr.T($"Bool") : b.Type.ToString();
 
     private static string Pretty(string name)
     {
@@ -79,10 +79,10 @@ public static class Blocks
     public static SCBlock Find(SaveFile sav, string key)
     {
         if (sav is not ISCBlockArray arr)
-            throw new EngineException("Questo gioco non usa blocchi di dati.");
+            throw new EngineException(Tr.T($"Questo gioco non usa blocchi di dati."));
         if (!uint.TryParse(key, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var k))
-            throw new EngineException("Chiave del blocco non valida.");
-        return arr.Accessor.BlockInfo.FirstOrDefault(b => b.Key == k) ?? throw new EngineException("Blocco non trovato.");
+            throw new EngineException(Tr.T($"Chiave del blocco non valida."));
+        return arr.Accessor.BlockInfo.FirstOrDefault(b => b.Key == k) ?? throw new EngineException(Tr.T($"Blocco non trovato."));
     }
 
     public static object? BlockObject(SaveFile sav, string key)
@@ -108,12 +108,12 @@ public static class Blocks
             var t = b.Type.GetType();
             object parsed;
             try { parsed = Convert.ChangeType(text.Trim(), t, CultureInfo.InvariantCulture); }
-            catch { throw new EngineException($"Valore non valido per un blocco {t.Name}."); }
+            catch { throw new EngineException(Tr.T($"Valore non valido per un blocco {t.Name}.")); }
             b.SetValue(parsed);
         }
         else
         {
-            throw new EngineException("Questo blocco contiene dati strutturati: aprilo nell'ispettore.");
+            throw new EngineException(Tr.T($"Questo blocco contiene dati strutturati: aprilo nell'ispettore."));
         }
         s.Dirty = true;
         object? now = b.Type.IsBoolean() ? b.Type == SCTypeCode.Bool2 : Convert.ToString(b.GetValue(), CultureInfo.InvariantCulture);

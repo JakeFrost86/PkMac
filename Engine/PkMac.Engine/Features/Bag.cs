@@ -84,7 +84,7 @@ public static class Bag
         var sav = s.Sav;
         var bag = sav.Inventory;
         if (p.Raw["pouches"] is not System.Text.Json.Nodes.JsonArray list)
-            throw new EngineException("Richiesta non valida.");
+            throw new EngineException(Tr.T($"Richiesta non valida."));
 
         foreach (var node in list)
         {
@@ -111,7 +111,7 @@ public static class Bag
                 }
             }
             if (requested.Count > pouch.Items.Length)
-                throw new EngineException($"La tasca {PouchName(pouch.Type)} contiene al massimo {pouch.Items.Length} oggetti diversi.");
+                throw new EngineException(Tr.T($"La tasca {PouchName(pouch.Type)} contiene al massimo {pouch.Items.Length} oggetti diversi."));
 
             var slots = pouch.Items;
             var existing = new Dictionary<int, InventoryItem>();
@@ -144,7 +144,7 @@ public static class Bag
         var sav = s.Sav;
         var bag = sav.Inventory;
         if ((uint)pouchIndex >= bag.Pouches.Count)
-            throw new EngineException("Tasca non valida.");
+            throw new EngineException(Tr.T($"Tasca non valida."));
         var pouch = bag.Pouches[pouchIndex];
         switch (action)
         {
@@ -153,7 +153,7 @@ public static class Bag
             case "clear": pouch.RemoveAll(); break;
             case "sortName": pouch.SortByName(s.Strings.GetItemStrings(sav.Context, sav.Version)); break;
             case "sortCount": pouch.SortByCount(reverse: true); break;
-            default: throw new EngineException("Azione sconosciuta.");
+            default: throw new EngineException(Tr.T($"Azione sconosciuta."));
         }
         bag.CopyTo(sav);
         s.Dirty = true;

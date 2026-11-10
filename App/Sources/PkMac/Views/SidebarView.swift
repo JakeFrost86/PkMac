@@ -16,24 +16,24 @@ struct SidebarView: View {
                     .selectionDisabled()
             }
 
-            SwiftUI.Section("Salvataggio") {
+            SwiftUI.Section(L("Salvataggio")) {
                 ForEach(AppSection.saveSections) { s in
                     if (s != .boxes || model.save?.hasBox == true) && (s != .party || model.save?.hasParty == true) {
                         SidebarRow(section: s, badge: badge(for: s)).tag(s)
                     }
                 }
             }
-            SwiftUI.Section("Strumenti") {
+            SwiftUI.Section(L("Strumenti")) {
                 ForEach(AppSection.toolSections) { s in
                     SidebarRow(section: s, badge: s == .transfer ? model.saveB.map { $0.versionKey } : nil).tag(s)
                 }
             }
-            SwiftUI.Section("Plugin") {
+            SwiftUI.Section(L("Plugin")) {
                 ForEach(AppSection.pluginSections) { s in
                     SidebarRow(section: s, badge: nil).tag(s)
                 }
             }
-            SwiftUI.Section("Sicurezza") {
+            SwiftUI.Section(L("Sicurezza")) {
                 SidebarRow(section: .backups, badge: nil).tag(AppSection.backups)
             }
         }
@@ -93,7 +93,7 @@ private struct SaveCard: View {
                     Text(save.game)
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .lineLimit(2)
-                    Text("Gen \(save.generation) · \(save.fileName ?? "")")
+                    Text(L("Gen \(save.generation) · \(save.fileName ?? "")"))
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -101,19 +101,19 @@ private struct SaveCard: View {
                 }
             }
             if let c = save.container {
-                Label(c.isBackup ? "Backup Azurii · \(c.title ?? "")" : "Salvataggio Azurii", systemImage: "doc.zipper")
+                Label(c.isBackup ? L("Backup Azurii · \(c.title ?? "")") : L("Salvataggio Azurii"), systemImage: "doc.zipper")
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundStyle(Color(hex: 0x3FB6FF))
                     .padding(.horizontal, 8).padding(.vertical, 4)
                     .background(Color(hex: 0x3FB6FF).opacity(0.14), in: Capsule())
-                    .help("Il file resta uno zip di Azurii: \(c.entry)")
+                    .help(L("Il file resta uno zip di Azurii: \(c.entry)"))
             }
             HStack(spacing: 14) {
                 Metric(symbol: "person.fill", value: save.ot)
                 Metric(symbol: "clock.fill", value: save.playTime)
                 if save.dirty {
                     Spacer()
-                    Circle().fill(.orange).frame(width: 8, height: 8).help("Modifiche non salvate")
+                    Circle().fill(.orange).frame(width: 8, height: 8).help(L("Modifiche non salvate"))
                 }
             }
         }
@@ -183,12 +183,12 @@ private struct EngineFooter: View {
     var body: some View {
         HStack(spacing: 8) {
             Circle().fill(model.engineState == .ready ? .green : .orange).frame(width: 6, height: 6)
-            Text("PKHeX.Core \(model.hello?.versions.core ?? "…")")
+            Text(L("PKHeX.Core \(model.hello?.versions.core ?? "…")"))
             Spacer()
             if model.updater.coreUpdateAvailable(current: model.hello?.versions.core) || model.updater.appUpdateAvailable
                 || model.updater.engineUpdateAvailable(current: model.hello?.versions.engine) {
                 SettingsLink {
-                    Label("Aggiorna", systemImage: "arrow.down.circle.fill")
+                    Label(L("Aggiorna"), systemImage: "arrow.down.circle.fill")
                         .labelStyle(.titleAndIcon)
                 }
                 .buttonStyle(.plain)

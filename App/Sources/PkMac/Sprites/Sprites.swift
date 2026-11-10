@@ -15,11 +15,11 @@ enum SpriteSettings {
     enum Mode: String, CaseIterable, Identifiable {
         case threeD = "3d", twoD = "2d"
         var id: String { rawValue }
-        var title: String { self == .threeD ? "3D · Pokémon HOME" : "2D · pixel art" }
+        var title: String { self == .threeD ? L("3D · Pokémon HOME") : L("2D · pixel art") }
         var detail: String {
             self == .threeD
-                ? "Render 3D di Pokémon HOME nei box e artwork ufficiale nei dettagli."
-                : "Sprite in pixel art classici, nitidi a qualsiasi dimensione."
+                ? L("Render 3D di Pokémon HOME nei box e artwork ufficiale nei dettagli.")
+                : L("Sprite in pixel art classici, nitidi a qualsiasi dimensione.")
         }
     }
 }

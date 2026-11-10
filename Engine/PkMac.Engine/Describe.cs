@@ -123,6 +123,7 @@ public static class Describe
             version = (int)pk.Version,
             versionName = GameInfo.GetVersionName(pk.Version),
             language = pk.Language,
+            origin = Origin(s, pk),
             friendship = pk.CurrentFriendship,
             exp = pk.EXP,
             teraType = tera,
@@ -208,6 +209,62 @@ public static class Describe
             else if (ch is ' ' or '-' or '_') { if (sb.Length > 0 && sb[^1] != '-') sb.Append('-'); }
         }
         return sb.ToString().Trim('-');
+    }
+
+    /// <summary>Raw origin data for the editable "Origine" tab.</summary>
+    public static object Origin(Session s, PKM pk)
+    {
+        static string? D(DateOnly? d) => d?.ToString("yyyy-MM-dd");
+        var gen = pk.Format;
+        return new
+        {
+            ball = (int)pk.Ball,
+            version = (int)pk.Version,
+            metLocation = (int)pk.MetLocation,
+            metLevel = (int)pk.MetLevel,
+            metDate = gen >= 4 ? D(pk.MetDate) : null,
+            eggLocation = gen >= 4 ? (int)pk.EggLocation : 0,
+            eggDate = gen >= 4 ? D(pk.EggMetDate) : null,
+            wasEgg = pk.WasEgg,
+            isEgg = pk.IsEgg,
+            fateful = pk.FatefulEncounter,
+            hasFateful = gen >= 3,
+            hasDates = gen >= 4,
+            hasEgg = gen >= 4,
+            hasVersion = gen >= 3,
+            hasMet = gen >= 2,
+            otGender = (int)pk.OriginalTrainerGender,
+            hasOtGender = gen >= 2,
+            tid = pk.GetDisplayTID(),
+            sid = pk.GetDisplaySID(),
+            hasSid = gen >= 3,
+            tidMax = pk.TrainerIDDisplayFormat == TrainerIDFormat.SixDigit ? 999_999 : 65535,
+            sidMax = pk.TrainerIDDisplayFormat == TrainerIDFormat.SixDigit ? 4294 : 65535,
+            language = pk.Language,
+            hasHandler = gen >= 6,
+            htName = gen >= 6 ? pk.HandlingTrainerName : "",
+            htGender = gen >= 6 ? (int)pk.HandlingTrainerGender : 0,
+            currentHandler = gen >= 6 ? (int)pk.CurrentHandler : 0,
+            pid = pk.PID.ToString("X8"),
+            ec = pk.EncryptionConstant.ToString("X8"),
+            hasEc = gen >= 6,
+            maxOt = pk.MaxStringLengthTrainer,
+        };
+    }
+
+    /// <summary>Games and met locations for the origin editor.</summary>
+    public static object OriginLists(Session s, int version, bool egg)
+    {
+        var sav = s.Sav;
+        var v = (GameVersion)version;
+        IReadOnlyList<ComboItem> locs;
+        try { locs = GameInfo.GetLocationList(v == GameVersion.Any ? sav.Version : v, sav.Context, egg); }
+        catch { locs = []; }
+        return new
+        {
+            games = s.Sources.Games.Where(g => g.Value > 0).Select(g => new { v = g.Value, t = g.Text }).ToArray(),
+            locations = locs.Select(l => new { v = l.Value, t = l.Text }).ToArray(),
+        };
     }
 
     public static string Name(IReadOnlyList<string> list, int index)

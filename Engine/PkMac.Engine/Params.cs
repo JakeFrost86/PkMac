@@ -9,9 +9,9 @@ public sealed class Params(JsonObject obj)
 
     public bool Has(string key) => obj.ContainsKey(key) && obj[key] is not null;
 
-    public string Str(string key) => Opt<string>(key) ?? throw new EngineException($"Parametro mancante: {key}");
+    public string Str(string key) => Opt<string>(key) ?? throw new EngineException(Tr.T($"Parametro mancante: {key}"));
     public string? OptStr(string key) => Opt<string>(key);
-    public int Int(string key) => Has(key) ? obj[key]!.GetValue<int>() : throw new EngineException($"Parametro mancante: {key}");
+    public int Int(string key) => Has(key) ? obj[key]!.GetValue<int>() : throw new EngineException(Tr.T($"Parametro mancante: {key}"));
     public int Int(string key, int fallback) => Has(key) ? obj[key]!.GetValue<int>() : fallback;
     public bool Bool(string key, bool fallback = false) => Has(key) ? obj[key]!.GetValue<bool>() : fallback;
 
@@ -22,7 +22,7 @@ public sealed class Params(JsonObject obj)
         return obj[key]!.GetValue<T>();
     }
 
-    public Params Obj(string key) => obj[key] as JsonObject is { } o ? new Params(o) : throw new EngineException($"Parametro mancante: {key}");
+    public Params Obj(string key) => obj[key] as JsonObject is { } o ? new Params(o) : throw new EngineException(Tr.T($"Parametro mancante: {key}"));
     public Params? OptObj(string key) => obj[key] as JsonObject is { } o ? new Params(o) : null;
 
     public int[]? IntArray(string key) => obj[key] is JsonArray a ? a.Select(n => n!.GetValue<int>()).ToArray() : null;

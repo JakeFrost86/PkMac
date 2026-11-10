@@ -121,7 +121,7 @@ public static class Gifts
         var all = All;
         if (detail >= 0)
         {
-            if ((uint)detail >= all.Length) throw new EngineException("Dono non trovato.");
+            if ((uint)detail >= all.Length) throw new EngineException(Tr.T($"Dono non trovato."));
             var g = all[detail];
             return new { card = Card(s, g, id: detail), lines = g.GetDescription(s.Strings).ToArray() };
         }
@@ -166,8 +166,8 @@ public static class Gifts
             {
                 supported = false,
                 message = sav.Generation >= 8
-                    ? "In questo gioco i doni segreti si riscattano dal gioco online: puoi comunque aggiungere i Pokémon evento dal database qui accanto."
-                    : "Questo gioco non ha un album dei doni segreti: puoi comunque ricevere i Pokémon evento dal database.",
+                    ? Tr.T($"In questo gioco i doni segreti si riscattano dal gioco online: puoi comunque aggiungere i Pokémon evento dal database qui accanto.")
+                    : Tr.T($"Questo gioco non ha un album dei doni segreti: puoi comunque ricevere i Pokémon evento dal database."),
             };
         }
         var album = LoadAlbum(sav, cards);
@@ -191,16 +191,16 @@ public static class Gifts
     private static object PutGift(Session s, MysteryGift incoming, int slot)
     {
         var sav = s.Sav;
-        var cards = Storage(sav) ?? throw new EngineException("Questo gioco non ha un album dei doni segreti.");
+        var cards = Storage(sav) ?? throw new EngineException(Tr.T($"Questo gioco non ha un album dei doni segreti."));
         if (incoming is not DataMysteryGift gift)
-            throw new EngineException("Questo dono non può essere inserito nell'album.");
+            throw new EngineException(Tr.T($"Questo dono non può essere inserito nell'album."));
         if (!gift.IsCardCompatible(sav, out var msg))
-            throw new EngineException($"Dono non compatibile con questo salvataggio. {msg}");
+            throw new EngineException(Tr.T($"Dono non compatibile con questo salvataggio. {msg}"));
 
         var album = LoadAlbum(sav, cards);
         if (gift is PCD { IsLockCapsule: true })
         {
-            if (sav is not SAV4HGSS) throw new EngineException("La Capsula Sigillo esiste solo in HeartGold/SoulSilver.");
+            if (sav is not SAV4HGSS) throw new EngineException(Tr.T($"La Capsula Sigillo esiste solo in HeartGold/SoulSilver."));
             slot = album.Length - 1;
         }
         else
@@ -214,20 +214,20 @@ public static class Gifts
             if (slot < 0)
                 slot = Array.FindIndex(album, a => a.IsEmpty && a.Type == gift.Type && (sav is not SAV4HGSS || Array.IndexOf(album, a) != album.Length - 1));
             if (slot < 0)
-                throw new EngineException("L'album dei doni è pieno: elimina una carta prima di aggiungerne un'altra.");
+                throw new EngineException(Tr.T($"L'album dei doni è pieno: elimina una carta prima di aggiungerne un'altra."));
             // No gaps: move to the first empty slot of the same type.
             int firstEmpty = Array.FindIndex(album, a => a.IsEmpty && a.Type == gift.Type);
             if (firstEmpty >= 0 && firstEmpty < slot)
                 slot = firstEmpty;
             if (sav is SAV4HGSS && slot == album.Length - 1)
-                throw new EngineException("Questo slot è riservato alla Capsula Sigillo.");
+                throw new EngineException(Tr.T($"Questo slot è riservato alla Capsula Sigillo."));
         }
         if ((uint)slot >= album.Length)
-            throw new EngineException("Slot dell'album non valido.");
+            throw new EngineException(Tr.T($"Slot dell'album non valido."));
         if (album[slot].Type != gift.Type)
-            throw new EngineException($"Tipo di carta non compatibile con lo slot ({gift.Type} ≠ {album[slot].Type}).");
+            throw new EngineException(Tr.T($"Tipo di carta non compatibile con lo slot ({gift.Type} ≠ {album[slot].Type})."));
 
-        s.Snapshot("Dono segreto");
+        s.Snapshot(Tr.T($"Dono segreto"));
         album[slot] = (DataMysteryGift)gift.Clone();
         SaveAlbum(sav, cards, album);
         // Mark the card id as received, like the game does.
@@ -240,17 +240,17 @@ public static class Gifts
     public static object PutInAlbum(Session s, int id, int slot)
     {
         var all = All;
-        if ((uint)id >= all.Length) throw new EngineException("Dono non trovato.");
+        if ((uint)id >= all.Length) throw new EngineException(Tr.T($"Dono non trovato."));
         return PutGift(s, all[id], slot);
     }
 
     public static object Delete(Session s, int slot)
     {
         var sav = s.Sav;
-        var cards = Storage(sav) ?? throw new EngineException("Questo gioco non ha un album dei doni segreti.");
+        var cards = Storage(sav) ?? throw new EngineException(Tr.T($"Questo gioco non ha un album dei doni segreti."));
         var album = LoadAlbum(sav, cards);
-        if ((uint)slot >= album.Length) throw new EngineException("Slot non valido.");
-        s.Snapshot("Elimina dono");
+        if ((uint)slot >= album.Length) throw new EngineException(Tr.T($"Slot non valido."));
+        s.Snapshot(Tr.T($"Elimina dono"));
         album[slot].Clear();
         int i = slot;
         while (i < album.Length - 1)
@@ -269,8 +269,8 @@ public static class Gifts
     public static object SetFlags(Session s, Params p)
     {
         var sav = s.Sav;
-        var cards = Storage(sav) ?? throw new EngineException("Questo gioco non ha un album dei doni segreti.");
-        s.Snapshot("Doni ricevuti");
+        var cards = Storage(sav) ?? throw new EngineException(Tr.T($"Questo gioco non ha un album dei doni segreti."));
+        s.Snapshot(Tr.T($"Doni ricevuti"));
         if (cards is IMysteryGiftFlags flags)
         {
             if (p.OptStr("action") == "clear")
@@ -302,27 +302,27 @@ public static class Gifts
     {
         var sav = s.Sav;
         if (!g.IsEntity || g.Species == 0)
-            throw new EngineException("Questo dono non contiene un Pokémon.");
+            throw new EngineException(Tr.T($"Questo dono non contiene un Pokémon."));
         if (!EntityFilter(sav)(g))
-            throw new EngineException($"Questo Pokémon evento non può arrivare in {GameInfo.GetVersionName(sav.Version)}.");
+            throw new EngineException(Tr.T($"Questo Pokémon evento non può arrivare in {GameInfo.GetVersionName(sav.Version)}."));
 
         PKM pk;
         try { pk = g.ConvertToPKM(sav); }
-        catch (Exception e) { throw new EngineException($"Impossibile generare il Pokémon dal dono: {e.Message}"); }
+        catch (Exception e) { throw new EngineException(Tr.T($"Impossibile generare il Pokémon dal dono: {e.Message}")); }
 
         if (pk.GetType() != sav.PKMType)
         {
             var conv = EntityConverter.ConvertToType(pk, sav.PKMType, out var res);
-            pk = conv ?? throw new EngineException($"Questo Pokémon evento non è trasferibile in questo gioco ({res}).");
+            pk = conv ?? throw new EngineException(Tr.T($"Questo Pokémon evento non è trasferibile in questo gioco ({res})."));
         }
         var errata = sav.EvaluateCompatibility(pk, s.Language);
         if (errata.Count > 0)
-            throw new EngineException("Non compatibile con questo gioco:\n" + string.Join("\n", errata));
+            throw new EngineException(Tr.T($"Non compatibile con questo gioco:\n") + string.Join("\n", errata));
 
         var r = target ?? FirstFree(sav);
         if (s.Get(r).Species != 0)
-            throw new EngineException("Lo slot scelto è occupato.");
-        s.Set(r, pk, settings: default(EntityImportSettings), label: "Dono segreto");
+            throw new EngineException(Tr.T($"Lo slot scelto è occupato."));
+        s.Set(r, pk, settings: default(EntityImportSettings), label: Tr.T($"Dono segreto"));
         return new { ok = true, @ref = r.ToJson(), detail = Describe.Detail(s, r, s.Get(r)) };
     }
 
@@ -332,13 +332,13 @@ public static class Gifts
             for (int i = 0; i < sav.BoxSlotCount; i++)
                 if (sav.GetBoxSlotAtIndex(b, i).Species == 0 && !sav.IsBoxSlotOverwriteProtected(b, i))
                     return new SlotRef(false, b, i);
-        throw new EngineException("I box sono pieni.");
+        throw new EngineException(Tr.T($"I box sono pieni."));
     }
 
     public static object Receive(Session s, int id, SlotRef? target)
     {
         var all = All;
-        if ((uint)id >= all.Length) throw new EngineException("Dono non trovato.");
+        if ((uint)id >= all.Length) throw new EngineException(Tr.T($"Dono non trovato."));
         return ReceiveGift(s, all[id], target);
     }
 
@@ -347,7 +347,7 @@ public static class Gifts
     {
         var data = File.ReadAllBytes(path);
         var gift = MysteryGift.GetMysteryGift(data, System.IO.Path.GetExtension(path))
-                   ?? throw new EngineException("Il file non è un dono segreto riconosciuto.");
+                   ?? throw new EngineException(Tr.T($"Il file non è un dono segreto riconosciuto."));
         if (reference is not null)
             return ReceiveGift(s, gift, SlotRef.From(reference));
         if (Storage(s.Sav) is not null && gift is DataMysteryGift && gift.Generation == s.Sav.Generation)

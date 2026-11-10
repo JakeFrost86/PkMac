@@ -11,29 +11,29 @@ struct AdvancedView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Header(title: "Dati avanzati", subtitle: "Ogni valore del salvataggio che PKHeX sa leggere e scrivere", symbol: "slider.horizontal.below.square.and.square.filled", tint: AppSection.advanced.tint)
+            Header(title: L("Dati avanzati"), subtitle: L("Ogni valore del salvataggio che PKHeX sa leggere e scrivere"), symbol: "slider.horizontal.below.square.and.square.filled", tint: AppSection.advanced.tint)
             HStack {
                 Picker("", selection: $mode) {
-                    Text("Campi del salvataggio").tag(0)
-                    if hasBlocks { Text("Blocchi di gioco").tag(1) }
+                    Text(L("Campi del salvataggio")).tag(0)
+                    if hasBlocks { Text(L("Blocchi di gioco")).tag(1) }
                 }
                 .pickerStyle(.segmented).labelsHidden().frame(width: 340)
                 Spacer()
-                Label("Modifiche annullabili con ⌘Z · verificate al salvataggio", systemImage: "checkmark.shield")
+                Label(L("Modifiche annullabili con ⌘Z · verificate al salvataggio"), systemImage: "checkmark.shield")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Group {
                 if mode == 1, hasBlocks {
                     if let b = blockTarget {
                         VStack(alignment: .leading, spacing: 8) {
-                            Button { blockTarget = nil } label: { Label("Tutti i blocchi", systemImage: "chevron.left") }.buttonStyle(.glass)
+                            Button { blockTarget = nil } label: { Label(L("Tutti i blocchi"), systemImage: "chevron.left") }.buttonStyle(.glass)
                             InspectorBrowser(target: ["target": "block", "key": b.key], rootTitle: b.name)
                         }
                     } else {
                         BlocksList { key, name in blockTarget = (key, name) }
                     }
                 } else {
-                    InspectorBrowser(target: ["target": "save"], rootTitle: model.save?.game ?? "Salvataggio")
+                    InspectorBrowser(target: ["target": "save"], rootTitle: model.save?.game ?? L("Salvataggio"))
                 }
             }
             .frame(maxHeight: .infinity, alignment: .top)
@@ -66,7 +66,7 @@ struct InspectorBrowser: View {
                 Spacer()
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    TextField("Filtra", text: $filter).textFieldStyle(.plain)
+                    TextField(L("Filtra"), text: $filter).textFieldStyle(.plain)
                 }
                 .padding(.horizontal, 10).padding(.vertical, 6)
                 .background(.primary.opacity(0.05), in: Capsule())
@@ -206,7 +206,7 @@ private struct PropRow: View {
                 .focused($focused)
                 .disabled(!prop.editable)
                 .onSubmit { if text != prop.value?.text { onSet(text) } }
-                .help(prop.min.map { "Intervallo \($0) … \(prop.max ?? "")" } ?? "")
+                .help(prop.min.map { L("Intervallo \($0) … \(prop.max ?? "")") } ?? "")
         }
     }
 }
@@ -225,11 +225,11 @@ private struct BlocksList: View {
             HStack(spacing: 10) {
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    TextField("Cerca per nome o chiave (es. Money, Badge, Raid, 0x…)", text: $query).textFieldStyle(.plain)
+                    TextField(L("Cerca per nome o chiave (es. Money, Badge, Raid, 0x…)"), text: $query).textFieldStyle(.plain)
                 }
                 .padding(.horizontal, 10).padding(.vertical, 7)
                 .background(.primary.opacity(0.05), in: Capsule())
-                Toggle("Solo valori e sezioni", isOn: $valuesOnly).toggleStyle(.switch).controlSize(.small)
+                Toggle(L("Solo valori e sezioni"), isOn: $valuesOnly).toggleStyle(.switch).controlSize(.small)
                 if let d = data { Text("\(d.blocks.count) di \(d.total ?? 0)").font(.caption).foregroundStyle(.secondary) }
             }
             if let d = data {
@@ -244,7 +244,7 @@ private struct BlocksList: View {
                         }
                         Spacer()
                         if b.hasObject {
-                            Button("Apri") { onOpen(b.key, b.name) }.buttonStyle(.glass).controlSize(.small)
+                            Button(L("Apri")) { onOpen(b.key, b.name) }.buttonStyle(.glass).controlSize(.small)
                         }
                         if b.editable { BlockValue(block: b) }
                     }

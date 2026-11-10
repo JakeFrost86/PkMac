@@ -18,8 +18,8 @@ enum Theme {
          Color(hex: 0x6FA8FF), Color(hex: 0xB08CFF), Color(hex: 0xFF7EB6)][max(0, min(5, index))]
     }
 
-    static let statShort = ["PS", "Att", "Dif", "AtSp", "DiSp", "Vel"]
-    static let statLong = ["PS", "Attacco", "Difesa", "Attacco Sp.", "Difesa Sp.", "Velocità"]
+    static let statShort = ["PS", L("Att"), L("Dif"), "AtSp", "DiSp", L("Vel")]
+    static let statLong = ["PS", L("Attacco"), L("Difesa"), L("Attacco Sp."), L("Difesa Sp."), L("Velocità")]
 }
 
 /// Pokémon type colors: soft, saturated pastels tuned to read well in light and dark mode.
@@ -85,25 +85,25 @@ enum PokeType: String, CaseIterable, Sendable {
 
     var italian: String {
         switch self {
-        case .normal: "Normale"
-        case .fire: "Fuoco"
-        case .water: "Acqua"
-        case .grass: "Erba"
-        case .electric: "Elettro"
-        case .ice: "Ghiaccio"
-        case .fighting: "Lotta"
-        case .poison: "Veleno"
-        case .ground: "Terra"
-        case .flying: "Volante"
-        case .psychic: "Psico"
-        case .bug: "Coleottero"
-        case .rock: "Roccia"
+        case .normal: L("Normale")
+        case .fire: L("Fuoco")
+        case .water: L("Acqua")
+        case .grass: L("Erba")
+        case .electric: L("Elettro")
+        case .ice: L("Ghiaccio")
+        case .fighting: L("Lotta")
+        case .poison: L("Veleno")
+        case .ground: L("Terra")
+        case .flying: L("Volante")
+        case .psychic: L("Psico")
+        case .bug: L("Coleottero")
+        case .rock: L("Roccia")
         case .ghost: "Spettro"
-        case .dragon: "Drago"
-        case .dark: "Buio"
-        case .steel: "Acciaio"
-        case .fairy: "Folletto"
-        case .stellar: "Astrale"
+        case .dragon: L("Drago")
+        case .dark: L("Buio")
+        case .steel: L("Acciaio")
+        case .fairy: L("Folletto")
+        case .stellar: L("Astrale")
         }
     }
 }

@@ -16,11 +16,11 @@ struct BagView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Header(title: "Borsa", subtitle: subtitle, symbol: "bag.fill", tint: AppSection.bag.tint)
+            Header(title: L("Borsa"), subtitle: subtitle, symbol: "bag.fill", tint: AppSection.bag.tint)
             if loading {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if data?.supported != true || pouches.isEmpty {
-                ContentUnavailableView("Borsa non disponibile", systemImage: "bag", description: Text("Questo salvataggio non ha una borsa modificabile."))
+                ContentUnavailableView(L("Borsa non disponibile"), systemImage: "bag", description: Text(L("Questo salvataggio non ha una borsa modificabile.")))
             } else {
                 pouchBar
                 toolbar
@@ -33,7 +33,7 @@ struct BagView: View {
 
     private var subtitle: String {
         let total = pouches.reduce(0) { $0 + $1.items.count }
-        return "\(total) oggetti in \(pouches.count) tasche" + (dirty ? " · modifiche da applicare" : "")
+        return L("\(total) oggetti in \(pouches.count) tasche") + (dirty ? L(" · modifiche da applicare") : "")
     }
 
     private func load() async {
@@ -77,7 +77,7 @@ struct BagView: View {
         HStack(spacing: 10) {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("Filtra gli oggetti", text: $filter).textFieldStyle(.plain)
+                TextField(L("Filtra gli oggetti"), text: $filter).textFieldStyle(.plain)
             }
             .padding(.horizontal, 10).padding(.vertical, 7)
             .background(.primary.opacity(0.05), in: Capsule())
@@ -90,7 +90,7 @@ struct BagView: View {
             Spacer()
             GlassEffectContainer(spacing: 8) {
                 HStack(spacing: 8) {
-                    Button { adding = true } label: { Label("Aggiungi", systemImage: "plus") }
+                    Button { adding = true } label: { Label(L("Aggiungi"), systemImage: "plus") }
                         .disabled((pouch?.items.count ?? 0) >= (pouch?.capacity ?? 0))
                         .popover(isPresented: $adding, arrowEdge: .bottom) {
                             if let p = pouch {
@@ -100,22 +100,22 @@ struct BagView: View {
                             }
                         }
                     Menu {
-                        Button { Task { await action("giveAll") } } label: { Label("Dai tutti gli oggetti della tasca", systemImage: "sparkles") }
-                        Button { Task { await action("maxAll") } } label: { Label("Quantità massima a tutti", systemImage: "arrow.up.to.line") }
+                        Button { Task { await action("giveAll") } } label: { Label(L("Dai tutti gli oggetti della tasca"), systemImage: "sparkles") }
+                        Button { Task { await action("maxAll") } } label: { Label(L("Quantità massima a tutti"), systemImage: "arrow.up.to.line") }
                         Divider()
-                        Button { Task { await action("sortName") } } label: { Label("Ordina per nome", systemImage: "textformat") }
-                        Button { Task { await action("sortCount") } } label: { Label("Ordina per quantità", systemImage: "number") }
+                        Button { Task { await action("sortName") } } label: { Label(L("Ordina per nome"), systemImage: "textformat") }
+                        Button { Task { await action("sortCount") } } label: { Label(L("Ordina per quantità"), systemImage: "number") }
                         Divider()
-                        Button(role: .destructive) { Task { await action("clear") } } label: { Label("Svuota la tasca", systemImage: "trash") }
+                        Button(role: .destructive) { Task { await action("clear") } } label: { Label(L("Svuota la tasca"), systemImage: "trash") }
                     } label: { Image(systemName: "wand.and.stars").frame(width: 18) }
                     .menuIndicator(.hidden)
-                    .help("Azioni rapide sulla tasca")
+                    .help(L("Azioni rapide sulla tasca"))
                 }
                 .buttonStyle(.glass)
             }
             if dirty {
-                Button("Annulla") { Task { await load() } }.buttonStyle(.glass)
-                Button { Task { await apply() } } label: { Label("Applica", systemImage: "checkmark") }
+                Button(L("Annulla")) { Task { await load() } }.buttonStyle(.glass)
+                Button { Task { await apply() } } label: { Label(L("Applica"), systemImage: "checkmark") }
                     .buttonStyle(.glassProminent)
                     .keyboardShortcut(.return, modifiers: .command)
                     .transition(.scale.combined(with: .opacity))
@@ -128,8 +128,8 @@ struct BagView: View {
         ScrollView {
             let items = (pouch?.items ?? []).filter { filter.isEmpty || $0.name.localizedCaseInsensitiveContains(filter) }
             if items.isEmpty {
-                ContentUnavailableView(filter.isEmpty ? "Tasca vuota" : "Nessun risultato", systemImage: "tray",
-                                       description: Text(filter.isEmpty ? "Usa “Aggiungi” o le azioni rapide per riempirla." : ""))
+                ContentUnavailableView(filter.isEmpty ? L("Tasca vuota") : L("Nessun risultato"), systemImage: "tray",
+                                       description: Text(filter.isEmpty ? L("Usa “Aggiungi” o le azioni rapide per riempirla.") : ""))
                     .padding(.top, 40)
             }
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 210, maximum: 280), spacing: 12)], spacing: 12) {
@@ -165,7 +165,7 @@ struct BagView: View {
     private func apply() async {
         if let d = await model.setBag(pouches) {
             data = d; pouches = d.pouches; dirty = false
-            model.toast(.success, "Borsa aggiornata")
+            model.toast(.success, L("Borsa aggiornata"))
         }
     }
 
@@ -218,7 +218,7 @@ private struct BagItemTile: View {
             Button { onChange(0) } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary) }
                 .buttonStyle(.plain)
                 .opacity(hover ? 1 : 0)
-                .help("Rimuovi")
+                .help(L("Rimuovi"))
         }
         .padding(10)
         .background(tint.opacity(hover ? 0.12 : 0.06), in: .rect(cornerRadius: 16, style: .continuous))
@@ -245,7 +245,7 @@ struct ItemPicker: View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("Cerca un oggetto", text: $query).textFieldStyle(.plain).focused($focused)
+                TextField(L("Cerca un oggetto"), text: $query).textFieldStyle(.plain).focused($focused)
                     .onSubmit { if let f = filtered.first { onPick(f); dismiss() } }
             }
             .padding(10)

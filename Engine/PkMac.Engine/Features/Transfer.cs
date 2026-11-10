@@ -32,7 +32,7 @@ public static class Transfer
         LastStage = "get";
         var src = from.Get(r);
         if (src.Species == 0)
-            return (null, "Lo slot di partenza è vuoto.");
+            return (null, Tr.T($"Lo slot di partenza è vuoto."));
         var dest = to.Sav;
 
         PKM pk;
@@ -46,28 +46,28 @@ public static class Transfer
             byte g1 = src.Format, g2 = dest.Generation;
             bool route = g2 >= g1 || (g1 <= 2 && g2 <= 2) || (g1 >= 8 && g2 >= 8);
             if (!route)
-                return (null, $"Non trasferibile: nei giochi non si può riportare un Pokémon dalla generazione {g1} alla {g2}.");
+                return (null, Tr.T($"Non trasferibile: nei giochi non si può riportare un Pokémon dalla generazione {g1} alla {g2}."));
             LastStage = "convert";
             EntityConverterResult res = EntityConverterResult.None;
             var job = Task.Run(() => { var c = EntityConverter.ConvertToType(src, dest.PKMType, out var r0); res = r0; return c; });
             if (!job.Wait(TimeSpan.FromSeconds(10)))
-                return (null, "Non trasferibile: la conversione non è riuscita.");
+                return (null, Tr.T($"Non trasferibile: la conversione non è riuscita."));
             var converted = job.Result;
             if (converted is null || res is not (EntityConverterResult.Success or EntityConverterResult.None))
-                return (null, $"Non trasferibile: {Explain(res)}.");
+                return (null, Tr.T($"Non trasferibile: {Explain(res)}."));
             pk = converted;
         }
 
 
         if (!dest.Personal.IsPresentInGame(pk.Species, pk.Form))
-            return (null, $"Non trasferibile: {Describe.Name(to.Strings.Species, pk.Species)} non è presente in {GameInfo.GetVersionName(dest.Version)}.");
+            return (null, Tr.T($"Non trasferibile: {Describe.Name(to.Strings.Species, pk.Species)} non è presente in {GameInfo.GetVersionName(dest.Version)}."));
 
         // Same treatment the game gives on arrival: handler/trade memories for the receiving trainer.
         dest.AdaptToSaveFile(pk, isParty: false);
         LastStage = "compat";
         var errata = dest.EvaluateCompatibility(pk, to.Language);
         if (errata.Count > 0)
-            return (null, "Non compatibile con il gioco di destinazione:\n" + string.Join("\n", errata));
+            return (null, Tr.T($"Non compatibile con il gioco di destinazione:\n") + string.Join("\n", errata));
 
         // A legal Pokémon must stay legal once it lands in the other game.
         LastStage = "legal-src";
@@ -77,7 +77,7 @@ public static class Transfer
         {
             var la = new LegalityAnalysis(pk);
             var first = la.Report(to.Language).Split('\n').FirstOrDefault(l => l.Trim().Length > 0) ?? "";
-            return (null, $"Non trasferibile: in {GameInfo.GetVersionName(dest.Version)} diventerebbe non legale.\n{first}");
+            return (null, Tr.T($"Non trasferibile: in {GameInfo.GetVersionName(dest.Version)} diventerebbe non legale.\n{first}"));
         }
         LastStage = "done";
         return (pk, null);
@@ -102,17 +102,17 @@ public static class Transfer
             return Storage.Move(from, fromRef, toRef, copy);
 
         if (to.Get(toRef).Species != 0)
-            throw new EngineException("Lo slot di destinazione è occupato: trascina il Pokémon su uno slot vuoto.");
+            throw new EngineException(Tr.T($"Lo slot di destinazione è occupato: trascina il Pokémon su uno slot vuoto."));
         var (pk, problem) = Prepare(from, fromRef, to);
         if (pk is null)
-            throw new EngineException(problem ?? "Trasferimento non possibile.");
+            throw new EngineException(problem ?? Tr.T($"Trasferimento non possibile."));
 
         // Trade/handler data is updated by PKHeX for the receiving save.
-        to.Set(toRef, pk, settings: default(EntityImportSettings), label: "Trasferimento");
+        to.Set(toRef, pk, settings: default(EntityImportSettings), label: Tr.T($"Trasferimento"));
         if (!copy)
         {
             if (fromRef.Party && from.Sav.PartyCount <= 1)
-                throw new EngineException("La squadra deve contenere almeno un Pokémon.");
+                throw new EngineException(Tr.T($"La squadra deve contenere almeno un Pokémon."));
             from.Clear(fromRef);
         }
         return new { ok = true, detail = Describe.Detail(to, toRef, to.Get(toRef)) };
@@ -123,7 +123,7 @@ public static class Transfer
     {
         var sav = s.Sav;
         if ((uint)box >= sav.BoxCount)
-            throw new EngineException("Box non valido.");
+            throw new EngineException(Tr.T($"Box non valido."));
         for (int i = 0; i < sav.BoxSlotCount; i++)
         {
             if (sav.GetBoxSlotAtIndex(box, i).Species != 0 || sav.IsBoxSlotOverwriteProtected(box, i))
@@ -132,6 +132,6 @@ public static class Transfer
             Storage.Move(s, from, to, copy);
             return to.ToJson();
         }
-        throw new EngineException($"Il box {box + 1} è pieno.");
+        throw new EngineException(Tr.T($"Il box {box + 1} è pieno."));
     }
 }

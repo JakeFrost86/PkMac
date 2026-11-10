@@ -138,8 +138,8 @@ public static class Pokedex
     {
         var sav = s.Sav;
         if (!sav.HasPokeDex)
-            throw new EngineException("Questo gioco non ha un Pokédex modificabile.");
-        s.Snapshot("Pokédex");
+            throw new EngineException(Tr.T($"Questo gioco non ha un Pokédex modificabile."));
+        s.Snapshot(Tr.T($"Pokédex"));
         if (p.OptStr("action") is { } action)
             Bulk(sav, action);
         if (p.Raw["changes"] is System.Text.Json.Nodes.JsonArray list)

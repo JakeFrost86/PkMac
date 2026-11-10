@@ -22,7 +22,7 @@ struct SearchPicker: View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("Cerca \(title.lowercased())", text: $query)
+                TextField(L("Cerca \(title.lowercased())"), text: $query)
                     .textFieldStyle(.plain)
                     .focused($focused)
                     .onSubmit {

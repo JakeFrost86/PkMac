@@ -35,7 +35,7 @@ public sealed class HomeLiveFeature(Session s)
         catch (Exception ex)
         {
             try { exec.Disconnect(); } catch { }
-            throw new EngineException($"HOME Live: {ex.Message}");
+            throw new EngineException(Tr.T($"HOME Live: {ex.Message}"));
         }
         _exec = exec;
         _cache.Clear();
@@ -49,12 +49,12 @@ public sealed class HomeLiveFeature(Session s)
         return true;
     }
 
-    private DeviceExecutor<DeviceState> Exec => _exec ?? throw new EngineException("HOME Live non è connesso.");
+    private DeviceExecutor<DeviceState> Exec => _exec ?? throw new EngineException(Tr.T($"HOME Live non è connesso."));
 
     private List<HomeWrapper?> Load(int box)
     {
         if ((uint)box >= BoxCount)
-            throw new EngineException("Box HOME non valido.");
+            throw new EngineException(Tr.T($"Box HOME non valido."));
         if (_cache.TryGetValue(box, out var cached))
             return cached;
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
@@ -116,9 +116,9 @@ public sealed class HomeLiveFeature(Session s)
 
     public object Import(int homeBox, int homeSlot, SlotRef target)
     {
-        var w = Load(homeBox).ElementAtOrDefault(homeSlot) ?? throw new EngineException("Slot HOME vuoto.");
-        var pk = Convert(w, s.Sav, out var result) ?? throw new EngineException($"Questo Pokémon non può essere portato in questo gioco ({result}).");
-        s.Set(target, pk, settings: default(EntityImportSettings), label: "Importa da HOME");
+        var w = Load(homeBox).ElementAtOrDefault(homeSlot) ?? throw new EngineException(Tr.T($"Slot HOME vuoto."));
+        var pk = Convert(w, s.Sav, out var result) ?? throw new EngineException(Tr.T($"Questo Pokémon non può essere portato in questo gioco ({result})."));
+        s.Set(target, pk, settings: default(EntityImportSettings), label: Tr.T($"Importa da HOME"));
         return Describe.Detail(s, target, s.Get(target));
     }
 

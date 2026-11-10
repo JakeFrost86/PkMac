@@ -154,9 +154,9 @@ enum AppIconManager {
     static let defaultID = "pianeta"
 
     static let all: [(id: String, name: String)] = [
-        ("pianeta", "Pianeta"), ("neon", "Neon"), ("classica", "Classica"), ("officina", "Officina"),
-        ("pixel", "Pixel"), ("floppy", "Floppy"),
-        ("apertura", "Apertura"), ("finder", "Finder"), ("matita", "Matita"), ("scritta", "Scritta"),
+        ("pianeta", L("Pianeta")), ("neon", L("Neon")), ("classica", L("Classica")), ("officina", L("Officina")),
+        ("pixel", L("Pixel")), ("floppy", L("Floppy")),
+        ("apertura", L("Apertura")), ("finder", L("Finder")), ("matita", L("Matita")), ("scritta", L("Scritta")),
     ]
 
     static var current: String {

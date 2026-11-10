@@ -147,8 +147,8 @@ public static class Events
                 supported = false,
                 useBlocks = blocks,
                 message = blocks
-                    ? "In questo gioco eventi, contatori e progressi sono salvati come blocchi: usa la sezione “Blocchi di gioco”."
-                    : "Questo gioco non ha eventi modificabili.",
+                    ? Tr.T($"In questo gioco eventi, contatori e progressi sono salvati come blocchi: usa la sezione “Blocchi di gioco”.")
+                    : Tr.T($"Questo gioco non ha eventi modificabili."),
             };
         }
 
@@ -186,8 +186,8 @@ public static class Events
     public static object Set(Session s, Params p)
     {
         var sav = s.Sav;
-        var st = Open(sav) ?? throw new EngineException("Questo gioco non ha eventi modificabili qui.");
-        s.Snapshot("Eventi di gioco");
+        var st = Open(sav) ?? throw new EngineException(Tr.T($"Questo gioco non ha eventi modificabili qui."));
+        s.Snapshot(Tr.T($"Eventi di gioco"));
         foreach (var (key, count, apply) in new (string, int, Action<int, System.Text.Json.Nodes.JsonNode>)[]
         {
             ("flags", st.FlagCount, (i, n) => st.SetFlag(i, n.ToJsonString() == "true")),

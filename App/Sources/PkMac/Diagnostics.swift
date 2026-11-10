@@ -55,8 +55,8 @@ final class PkMacApplication: NSApplication {
         lastAlert = Date()
         let reason = exception.reason ?? exception.name.rawValue
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-            ErrorReporter.show(title: "PkMac ha intercettato un errore",
-                               detail: "L'app resta aperta e i tuoi dati non sono stati toccati.\n\n\(reason)") { silence in
+            ErrorReporter.show(title: L("PkMac ha intercettato un errore"),
+                               detail: L("L'app resta aperta e i tuoi dati non sono stati toccati.\n\n\(reason)")) { silence in
                 if silence { self?.silenced = true }
             }
         }
@@ -83,11 +83,11 @@ enum ErrorReporter {
         }
         NSSetUncaughtExceptionHandler { e in
             Log.error("Eccezione non gestita: \(e.name.rawValue): \(e.reason ?? "")\n\(e.callStackSymbols.joined(separator: "\n"))")
-            ErrorReporter.writeMarker("Eccezione: \(e.name.rawValue)\n\(e.reason ?? "")\n\n\(e.callStackSymbols.prefix(30).joined(separator: "\n"))")
+            ErrorReporter.writeMarker(L("Eccezione: \(e.name.rawValue)\n\(e.reason ?? "")\n\n\(e.callStackSymbols.prefix(30).joined(separator: "\n"))"))
         }
         for sig in [SIGABRT, SIGSEGV, SIGBUS, SIGILL, SIGTRAP, SIGFPE] {
             signal(sig) { s in
-                ErrorReporter.writeMarker("Segnale \(s) (\(String(cString: strsignal(s))))\n\n\(Thread.callStackSymbols.prefix(40).joined(separator: "\n"))")
+                ErrorReporter.writeMarker(L("Segnale \(s) (\(String(cString: strsignal(s))))\n\n\(Thread.callStackSymbols.prefix(40).joined(separator: "\n"))"))
                 signal(s, SIG_DFL)
                 raise(s)
             }
@@ -114,7 +114,7 @@ enum ErrorReporter {
         let body = "\(Date())\n\(text)\n"
         try? body.write(to: Log.crashMarker, atomically: false, encoding: .utf8)
         if let h = try? FileHandle(forWritingTo: Log.file) {
-            h.seekToEndOfFile(); h.write(Data("[CRASH] \(body)".utf8)); try? h.close()
+            h.seekToEndOfFile(); h.write(Data(L("[CRASH] \(body)").utf8)); try? h.close()
         }
     }
 
@@ -122,8 +122,8 @@ enum ErrorReporter {
     @MainActor static func checkPreviousCrash() {
         guard let text = try? String(contentsOf: Log.crashMarker, encoding: .utf8) else { return }
         try? FileManager.default.removeItem(at: Log.crashMarker)
-        show(title: "L'ultima volta PkMac si è chiusa per un errore",
-             detail: "Il dettaglio è nel registro (Aiuto ▸ Mostra il registro degli errori).\n\n" + String(text.prefix(600))) { _ in }
+        show(title: L("L'ultima volta PkMac si è chiusa per un errore"),
+             detail: L("Il dettaglio è nel registro (Aiuto ▸ Mostra il registro degli errori).\n\n") + String(text.prefix(600))) { _ in }
     }
 
     @MainActor static func show(title: String, detail: String, done: @escaping (Bool) -> Void) {
@@ -133,9 +133,9 @@ enum ErrorReporter {
         alert.alertStyle = .warning
         alert.messageText = title
         alert.informativeText = detail
-        alert.addButton(withTitle: "Ok")
-        alert.addButton(withTitle: "Mostra il registro")
-        alert.addButton(withTitle: "Non mostrare più (questa sessione)")
+        alert.addButton(withTitle: L("Ok"))
+        alert.addButton(withTitle: L("Mostra il registro"))
+        alert.addButton(withTitle: L("Non mostrare più (questa sessione)"))
         let r = alert.runModal()
         showing = false
         if r == .alertSecondButtonReturn { revealLog() }

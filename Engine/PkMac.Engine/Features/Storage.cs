@@ -9,7 +9,7 @@ public static class Storage
     {
         var sav = s.Sav;
         if (!sav.HasBox || (uint)box >= sav.BoxCount)
-            throw new EngineException("Box non valido.");
+            throw new EngineException(Tr.T($"Box non valido."));
         var slots = new object[sav.BoxSlotCount];
         Parallel.For(0, sav.BoxSlotCount, i =>
         {
@@ -56,13 +56,13 @@ public static class Storage
     {
         var pk = s.Get(r).Clone();
         if (pk.Species == 0 && !c.Has("species"))
-            throw new EngineException("Lo slot è vuoto.");
+            throw new EngineException(Tr.T($"Lo slot è vuoto."));
 
         if (c.Has("species"))
         {
             var sp = (ushort)c.Int("species");
             if (sp == 0 || sp > s.Sav.MaxSpeciesID)
-                throw new EngineException("Specie non disponibile in questo gioco.");
+                throw new EngineException(Tr.T($"Specie non disponibile in questo gioco."));
             bool wasDefault = !pk.IsNicknamed;
             pk.Species = sp;
             pk.Form = (byte)c.Int("form", 0);
@@ -84,7 +84,7 @@ public static class Storage
             else
             {
                 if (nick.Length > pk.MaxStringLengthNickname)
-                    throw new EngineException($"Soprannome troppo lungo (massimo {pk.MaxStringLengthNickname} caratteri).");
+                    throw new EngineException(Tr.T($"Soprannome troppo lungo (massimo {pk.MaxStringLengthNickname} caratteri)."));
                 pk.SetNickname(nick);
             }
         }
@@ -113,7 +113,7 @@ public static class Storage
             var max = pk.MaxEV;
             evs = evs.Select(v => Math.Clamp(v, 0, max)).ToArray();
             if (pk.Format >= 3 && evs.Sum() > 510)
-                throw new EngineException("La somma degli EV non può superare 510.");
+                throw new EngineException(Tr.T($"La somma degli EV non può superare 510."));
             pk.EV_HP = evs[0]; pk.EV_ATK = evs[1]; pk.EV_DEF = evs[2];
             pk.EV_SPA = evs[3]; pk.EV_SPD = evs[4]; pk.EV_SPE = evs[5];
         }
@@ -124,7 +124,32 @@ public static class Storage
         if (c.Has("ball"))
             pk.Ball = (byte)c.Int("ball");
         if (c.Has("ot"))
-            pk.OriginalTrainerName = c.Str("ot");
+        {
+            var ot = c.Str("ot");
+            if (ot.Length > pk.MaxStringLengthTrainer)
+                throw new EngineException(Tr.T($"Nome OT troppo lungo (massimo {pk.MaxStringLengthTrainer} caratteri)."));
+            pk.OriginalTrainerName = ot;
+        }
+        if (c.Has("otGender")) pk.OriginalTrainerGender = (byte)Math.Clamp(c.Int("otGender"), 0, 1);
+        if (c.Has("tid")) pk.SetDisplayTID((uint)Math.Max(0, c.Int("tid")));
+        if (c.Has("sid")) pk.SetDisplaySID((uint)Math.Max(0, c.Int("sid")));
+        if (c.Has("language")) pk.Language = c.Int("language");
+        if (c.Has("version")) pk.Version = (GameVersion)c.Int("version");
+        if (c.Has("metLocation")) pk.MetLocation = (ushort)Math.Max(0, c.Int("metLocation"));
+        if (c.Has("metLevel")) pk.MetLevel = (byte)Math.Clamp(c.Int("metLevel"), 0, 100);
+        if (c.Has("eggLocation")) pk.EggLocation = (ushort)Math.Max(0, c.Int("eggLocation"));
+        if (c.OptStr("metDate") is { } md) pk.MetDate = string.IsNullOrEmpty(md) ? null : DateOnly.Parse(md, System.Globalization.CultureInfo.InvariantCulture);
+        if (c.OptStr("eggDate") is { } ed) pk.EggMetDate = string.IsNullOrEmpty(ed) ? null : DateOnly.Parse(ed, System.Globalization.CultureInfo.InvariantCulture);
+        if (c.Has("fateful")) pk.FatefulEncounter = c.Bool("fateful");
+        if (c.Has("htName")) pk.HandlingTrainerName = c.Str("htName");
+        if (c.Has("htGender")) pk.HandlingTrainerGender = (byte)Math.Clamp(c.Int("htGender"), 0, 1);
+        if (c.Has("currentHandler")) pk.CurrentHandler = (byte)Math.Clamp(c.Int("currentHandler"), 0, 1);
+        if (c.OptStr("pid") is { Length: > 0 } pidHex)
+            pk.PID = uint.Parse(pidHex.Trim().Replace("0x", ""), System.Globalization.NumberStyles.HexNumber);
+        if (c.OptStr("ec") is { Length: > 0 } ecHex)
+            pk.EncryptionConstant = uint.Parse(ecHex.Trim().Replace("0x", ""), System.Globalization.NumberStyles.HexNumber);
+        if (c.Bool("rerollPid")) pk.SetPIDGender(pk.Gender);
+        if (c.Bool("rerollEc")) pk.SetRandomEC();
         if (c.Has("friendship"))
             pk.CurrentFriendship = (byte)Math.Clamp(c.Int("friendship"), 0, 255);
         if (c.Has("teraType") && pk is ITeraType tera)
@@ -134,7 +159,7 @@ public static class Storage
 
         pk.ResetPartyStats();
         pk.RefreshChecksum();
-        s.Set(r, pk, label: "Modifica Pokémon");
+        s.Set(r, pk, label: Tr.T($"Modifica Pokémon"));
         return Describe.Detail(s, r, s.Get(r));
     }
 
@@ -152,7 +177,7 @@ public static class Storage
             return false;
         if (copy)
         {
-            s.Set(to, a.Clone(), label: "Copia");
+            s.Set(to, a.Clone(), label: Tr.T($"Copia"));
             return true;
         }
         if (from == to) return true;
@@ -160,20 +185,20 @@ public static class Storage
         {
             // Moving the last party member out is not allowed by the games.
             if (s.Sav.PartyCount <= 1)
-                throw new EngineException("La squadra deve contenere almeno un Pokémon.");
+                throw new EngineException(Tr.T($"La squadra deve contenere almeno un Pokémon."));
         }
-        s.Set(to, a.Clone(), label: "Sposta");
+        s.Set(to, a.Clone(), label: Tr.T($"Sposta"));
         if (b.Species == 0)
             s.Clear(from, recordUndo: true);
         else
-            s.Set(from, b.Clone(), label: "Sposta");
+            s.Set(from, b.Clone(), label: Tr.T($"Sposta"));
         return true;
     }
 
     public static object RenameBox(Session s, int box, string name)
     {
         if (s.Sav is not IBoxDetailName n)
-            throw new EngineException("Questo gioco non permette di rinominare i box.");
+            throw new EngineException(Tr.T($"Questo gioco non permette di rinominare i box."));
         n.SetBoxName(box, name);
         s.Dirty = true;
         return s.BoxName(box);
@@ -265,7 +290,7 @@ public static class Storage
     public static object ExportPk(Session s, SlotRef r, string dir)
     {
         var pk = s.Get(r);
-        if (pk.Species == 0) throw new EngineException("Lo slot è vuoto.");
+        if (pk.Species == 0) throw new EngineException(Tr.T($"Lo slot è vuoto."));
         Directory.CreateDirectory(dir);
         var path = UniquePath(dir, pk.FileName);
         File.WriteAllBytes(path, Bytes(pk));
@@ -303,8 +328,8 @@ public static class Storage
     {
         var data = File.ReadAllBytes(path);
         if (!FileUtil.TryGetPKM(data, out var pk, Path.GetExtension(path), s.Sav))
-            throw new EngineException("Il file non contiene un Pokémon leggibile.");
-        s.Set(r, pk, settings: default(EntityImportSettings), label: "Importa");
+            throw new EngineException(Tr.T($"Il file non contiene un Pokémon leggibile."));
+        s.Set(r, pk, settings: default(EntityImportSettings), label: Tr.T($"Importa"));
         return Describe.Detail(s, r, s.Get(r));
     }
 
@@ -315,7 +340,7 @@ public static class Storage
     {
         var pk = s.Get(r).Clone();
         pk.Heal();
-        s.Set(r, pk, label: "Cura");
+        s.Set(r, pk, label: Tr.T($"Cura"));
         return Describe.Detail(s, r, s.Get(r));
     }
 
@@ -327,7 +352,7 @@ public static class Storage
         pk.IV_HP = pk.IV_ATK = pk.IV_DEF = pk.IV_SPA = pk.IV_SPD = pk.IV_SPE = max;
         pk.ResetPartyStats();
         pk.RefreshChecksum();
-        s.Set(r, pk, label: "IV al massimo");
+        s.Set(r, pk, label: Tr.T($"IV al massimo"));
         return Describe.Detail(s, r, s.Get(r));
     }
 
@@ -336,7 +361,7 @@ public static class Storage
     public static object Ribbons(Session s, SlotRef r)
     {
         var pk = s.Get(r);
-        if (pk.Species == 0) throw new EngineException("Slot vuoto.");
+        if (pk.Species == 0) throw new EngineException(Tr.T($"Slot vuoto."));
         var la = new LegalityAnalysis(pk);
         bool ribbonsOk = !la.Results.Any(x => x.Identifier == CheckIdentifier.Ribbon && !x.Valid);
         var list = RibbonInfo.GetRibbonInfo(pk).Select(i => new
@@ -356,7 +381,7 @@ public static class Storage
     public static object SetRibbons(Session s, SlotRef r, Params p)
     {
         var pk = s.Get(r).Clone();
-        if (pk.Species == 0) throw new EngineException("Slot vuoto.");
+        if (pk.Species == 0) throw new EngineException(Tr.T($"Slot vuoto."));
         switch (p.OptStr("action"))
         {
             case "allValid": RibbonApplicator.SetAllValidRibbons(pk); break;
@@ -381,7 +406,7 @@ public static class Storage
         if (p.Has("affixed") && pk is IRibbonSetAffixed a)
             a.AffixedRibbon = (sbyte)Math.Clamp(p.Int("affixed"), -1, 127);
         pk.RefreshChecksum();
-        s.Set(r, pk, label: "Fiocchi");
+        s.Set(r, pk, label: Tr.T($"Fiocchi"));
         return new { ribbons = Ribbons(s, r), detail = Pokemon(s, r) };
     }
 }

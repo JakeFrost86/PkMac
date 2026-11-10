@@ -105,10 +105,10 @@ public static class Inspector
             case "pkm":
                 r = p.Slot();
                 pk = s.Get(r.Value).Clone();
-                if (pk.Species == 0) throw new EngineException("Slot vuoto.");
+                if (pk.Species == 0) throw new EngineException(Tr.T($"Slot vuoto."));
                 return pk;
             case "block":
-                return Blocks.BlockObject(s.Sav, p.Str("key")) ?? throw new EngineException("Questo blocco non ha una struttura modificabile.");
+                return Blocks.BlockObject(s.Sav, p.Str("key")) ?? throw new EngineException(Tr.T($"Questo blocco non ha una struttura modificabile."));
             default:
                 return s.Sav;
         }
@@ -121,9 +121,9 @@ public static class Inspector
         foreach (var n in path)
         {
             var name = n!.GetValue<string>();
-            var prop = Props(o.GetType()).FirstOrDefault(x => x.Name == name) ?? throw new EngineException($"Proprietà sconosciuta: {name}");
-            if (!IsChild(prop.PropertyType)) throw new EngineException($"{name} non è una sezione.");
-            o = prop.GetValue(o) ?? throw new EngineException($"{name} non è disponibile.");
+            var prop = Props(o.GetType()).FirstOrDefault(x => x.Name == name) ?? throw new EngineException(Tr.T($"Proprietà sconosciuta: {name}"));
+            if (!IsChild(prop.PropertyType)) throw new EngineException(Tr.T($"{name} non è una sezione."));
+            o = prop.GetValue(o) ?? throw new EngineException(Tr.T($"{name} non è disponibile."));
         }
         return o;
     }
@@ -140,9 +140,9 @@ public static class Inspector
         var root = Root(s, p, out var pk, out var r);
         var o = Walk(root, p.Raw["path"] as JsonArray);
         var name = p.Str("prop");
-        var prop = Props(o.GetType()).FirstOrDefault(x => x.Name == name) ?? throw new EngineException($"Proprietà sconosciuta: {name}");
+        var prop = Props(o.GetType()).FirstOrDefault(x => x.Name == name) ?? throw new EngineException(Tr.T($"Proprietà sconosciuta: {name}"));
         if (prop.SetMethod is not { IsPublic: true } || !IsSimple(prop.PropertyType))
-            throw new EngineException($"{name} non è modificabile.");
+            throw new EngineException(Tr.T($"{name} non è modificabile."));
         var u = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
         var node = p.Raw["value"];
         object value;
@@ -161,7 +161,7 @@ public static class Inspector
         }
         catch (Exception e) when (e is not EngineException)
         {
-            throw new EngineException($"Valore non valido per {name} ({u.Name}).");
+            throw new EngineException(Tr.T($"Valore non valido per {name} ({u.Name})."));
         }
 
         if (pk is not null && r is { } slot)
@@ -169,11 +169,11 @@ public static class Inspector
             prop.SetValue(o, value);
             if (pk is { } entity && ReferenceEquals(o, entity))
                 entity.RefreshChecksum();
-            s.Set(slot, pk, label: $"Modifica {name}");
+            s.Set(slot, pk, label: Tr.T($"Modifica {name}"));
             return new { ok = true, props = Describe(Walk(s.Get(slot), p.Raw["path"] as JsonArray)), detail = Features.Storage.Pokemon(s, slot) };
         }
 
-        s.Snapshot($"Modifica {name}");
+        s.Snapshot(Tr.T($"Modifica {name}"));
         prop.SetValue(o, value);
         s.Dirty = true;
         return new { ok = true, props = Describe(o) };

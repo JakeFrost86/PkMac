@@ -12,22 +12,22 @@ enum AppSection: String, CaseIterable, Identifiable, Hashable {
 
     var title: String {
         switch self {
-        case .boxes: "Box"
-        case .party: "Squadra"
-        case .overview: "Panoramica"
-        case .trainer: "Allenatore"
-        case .bag: "Borsa"
+        case .boxes: L("Box")
+        case .party: L("Squadra")
+        case .overview: L("Panoramica")
+        case .trainer: L("Allenatore")
+        case .bag: L("Borsa")
         case .pokedex: "Pokédex"
-        case .events: "Eventi di gioco"
-        case .gifts: "Doni segreti"
-        case .transfer: "Trasferisci"
-        case .advanced: "Dati avanzati"
+        case .events: L("Eventi di gioco")
+        case .gifts: L("Doni segreti")
+        case .transfer: L("Trasferisci")
+        case .advanced: L("Dati avanzati")
         case .alm: "Auto Legality"
-        case .sorting: "Ordina"
-        case .special: "Pokémon speciali"
+        case .sorting: L("Ordina")
+        case .special: L("Pokémon speciali")
         case .liveHex: "LiveHeX"
-        case .home: "HOME Live"
-        case .backups: "Backup"
+        case .home: L("HOME Live")
+        case .backups: L("Backup")
         }
     }
 
@@ -154,7 +154,7 @@ final class AppModel {
         engineState = .starting
         engine?.stop()
         guard let exe = EngineManager.executable(), FileManager.default.isExecutableFile(atPath: exe.path) else {
-            engineState = .failed("Motore PKHeX non trovato nel pacchetto dell'app.")
+            engineState = .failed(L("Motore PKHeX non trovato nel pacchetto dell'app."))
             return
         }
         let client = EngineClient(executable: exe)
@@ -164,14 +164,16 @@ final class AppModel {
         client.onExit = { [weak self] code in
             Task { @MainActor in
                 guard let self, self.engine === client else { return }
-                self.engineState = .failed("Il motore si è chiuso inaspettatamente (\(code)).")
+                self.engineState = .failed(L("Il motore si è chiuso inaspettatamente (\(code))."))
             }
         }
         do {
             try client.start()
             engine = client
             hello = try await client.call("hello")
-            try await client.send("setLanguage", ["lang": "it"])
+            var langParams: [String: Any] = ["lang": Lang.engineCode]
+            if let table = Bundle.main.url(forResource: Lang.engineCode, withExtension: "json", subdirectory: "Lang") { langParams["table"] = table.path }
+            try await client.send("setLanguage", langParams)
             await applyALMSettings()
             engineState = .ready
         } catch {
@@ -179,7 +181,7 @@ final class AppModel {
             if EngineManager.activeManifest() != nil {
                 EngineManager.resetToBundled()
                 await startEngine()
-                toast(.warning, "Motore aggiornato non valido", "Sono tornato alla versione inclusa nell'app.")
+                toast(.warning, L("Motore aggiornato non valido"), L("Sono tornato alla versione inclusa nell'app."))
                 return
             }
             engineState = .failed(error.localizedDescription)
@@ -200,13 +202,13 @@ final class AppModel {
     }
 
     func call<T: Decodable>(_ method: String, _ params: [String: Any] = [:]) async throws -> T {
-        guard let engine else { throw EngineError(message: "Motore non pronto.") }
+        guard let engine else { throw EngineError(message: L("Motore non pronto.")) }
         return try await engine.call(method, params)
     }
 
     @discardableResult
     func send(_ method: String, _ params: [String: Any] = [:]) async throws -> Data {
-        guard let engine else { throw EngineError(message: "Motore non pronto.") }
+        guard let engine else { throw EngineError(message: L("Motore non pronto.")) }
         return try await engine.send(method, params)
     }
 
@@ -215,7 +217,7 @@ final class AppModel {
         if let label { busy = label }
         defer { busy = nil; progress = nil }
         do { try await work() } catch {
-            toast(.error, "Operazione non riuscita", error.localizedDescription)
+            toast(.error, L("Operazione non riuscita"), error.localizedDescription)
         }
     }
 
@@ -235,8 +237,8 @@ final class AppModel {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
-        panel.message = "Scegli un salvataggio Pokémon (main, .sav, .dsv, .dat, .gci, .bin…) o uno zip di Azurii"
-        panel.prompt = "Apri"
+        panel.message = L("Scegli un salvataggio Pokémon (main, .sav, .dsv, .dat, .gci, .bin…) o uno zip di Azurii")
+        panel.prompt = L("Apri")
         if panel.runModal() == .OK, let url = panel.url {
             Task { await open(url) }
         }
@@ -245,18 +247,18 @@ final class AppModel {
     func open(_ url: URL, remember: Bool = true, entry: String? = nil) async {
         if save?.dirty == true, save?.path != url.path {
             let alert = NSAlert()
-            alert.messageText = "Ci sono modifiche non salvate"
-            alert.informativeText = "Vuoi salvarle prima di aprire un altro file?"
-            alert.addButton(withTitle: "Salva")
-            alert.addButton(withTitle: "Non salvare")
-            alert.addButton(withTitle: "Annulla")
+            alert.messageText = L("Ci sono modifiche non salvate")
+            alert.informativeText = L("Vuoi salvarle prima di aprire un altro file?")
+            alert.addButton(withTitle: L("Salva"))
+            alert.addButton(withTitle: L("Non salvare"))
+            alert.addButton(withTitle: L("Annulla"))
             switch alert.runModal() {
             case .alertFirstButtonReturn: await saveFile()
             case .alertThirdButtonReturn: return
             default: break
             }
         }
-        await perform(url.pathExtension.lowercased() == "zip" ? "Leggo lo zip di Azurii…" : "Apro il salvataggio…") {
+        await perform(url.pathExtension.lowercased() == "zip" ? L("Leggo lo zip di Azurii…") : L("Apro il salvataggio…")) {
             var params: [String: Any] = ["path": url.path]
             if let entry { params["entry"] = entry }
             let raw = try await send("open", params)
@@ -274,11 +276,11 @@ final class AppModel {
             try await reloadAll()
             if remember { rememberRecent(url.path) }
             if !info.checksumValid {
-                toast(.warning, "Checksum non validi nel file originale", info.checksumInfo)
+                toast(.warning, L("Checksum non validi nel file originale"), info.checksumInfo)
             } else if let c = info.container {
-                toast(.success, "\(info.game) da Azurii", c.isBackup ? "Dal backup \(c.zipName): lo zip verrà aggiornato al salvataggio." : "Salvataggio Azurii: lo zip resta reimportabile in Azurii.")
+                toast(.success, L("\(info.game) da Azurii"), c.isBackup ? L("Dal backup \(c.zipName): lo zip verrà aggiornato al salvataggio.") : L("Salvataggio Azurii: lo zip resta reimportabile in Azurii."))
             } else {
-                toast(.success, info.game, "\(info.ot) · \(info.playTime) di gioco")
+                toast(.success, info.game, L("\(info.ot) · \(info.playTime) di gioco"))
             }
         }
     }
@@ -309,7 +311,7 @@ final class AppModel {
 
     func saveFile(as url: URL? = nil) async {
         guard save != nil else { return }
-        await perform("Verifico i checksum e salvo…") {
+        await perform(L("Verifico i checksum e salvo…")) {
             var params: [String: Any] = ["backup": true]
             if let url { params["path"] = url.path }
             let result: SaveResult = try await call("save", params)
@@ -323,7 +325,7 @@ final class AppModel {
     func saveAsPanel() {
         let panel = NSSavePanel()
         panel.nameFieldStringValue = save?.fileName ?? "main"
-        panel.message = "Esporta il salvataggio verificato"
+        panel.message = L("Esporta il salvataggio verificato")
         if panel.runModal() == .OK, let url = panel.url {
             Task { await saveFile(as: url) }
         }
@@ -349,7 +351,7 @@ final class AppModel {
                 box = data
             }
         } catch {
-            toast(.error, "Impossibile leggere il box", error.localizedDescription)
+            toast(.error, L("Impossibile leggere il box"), error.localizedDescription)
         }
     }
 
@@ -377,7 +379,7 @@ final class AppModel {
         selection = ref
         guard let ref else { detail = nil; return }
         do { try await loadDetail(ref) } catch {
-            toast(.error, "Impossibile leggere il Pokémon", error.localizedDescription)
+            toast(.error, L("Impossibile leggere il Pokémon"), error.localizedDescription)
         }
     }
 
@@ -399,7 +401,7 @@ final class AppModel {
             await reloadParty()
             try? await refreshInfo()
         } catch {
-            toast(.error, "Modifica non applicata", error.localizedDescription)
+            toast(.error, L("Modifica non applicata"), error.localizedDescription)
         }
     }
 
@@ -410,7 +412,7 @@ final class AppModel {
             await afterMutation()
             if !copy, selection == from { await select(to) }
         } catch {
-            toast(.error, "Spostamento non riuscito", error.localizedDescription)
+            toast(.error, L("Spostamento non riuscito"), error.localizedDescription)
         }
     }
 
@@ -419,9 +421,9 @@ final class AppModel {
             try await send("delete", ["ref": ref.json])
             if selection == ref { detail = nil }
             await afterMutation()
-            toast(.info, "Pokémon rilasciato", "Puoi annullare con ⌘Z.")
+            toast(.info, L("Pokémon rilasciato"), L("Puoi annullare con ⌘Z."))
         } catch {
-            toast(.error, "Eliminazione non riuscita", error.localizedDescription)
+            toast(.error, L("Eliminazione non riuscita"), error.localizedDescription)
         }
     }
 
@@ -433,10 +435,10 @@ final class AppModel {
             let r: UndoResult = try await call(method)
             if let label = r.applied {
                 await afterMutation()
-                toast(.info, method == "undo" ? "Annullato: \(label)" : "Ripristinato: \(label)")
+                toast(.info, method == "undo" ? L("Annullato: \(label)") : L("Ripristinato: \(label)"))
             }
         } catch {
-            toast(.error, "Impossibile annullare", error.localizedDescription)
+            toast(.error, L("Impossibile annullare"), error.localizedDescription)
         }
     }
 
@@ -463,13 +465,13 @@ final class AppModel {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
-        panel.prompt = "Esporta qui"
+        panel.prompt = L("Esporta qui")
         guard panel.runModal() == .OK, let dir = panel.url else { return }
         Task {
             await perform(nil) {
                 let data = try await send("exportPk", ["ref": ref.json, "dir": dir.path])
                 let path = (try? JSONDecoder().decode(String.self, from: data)) ?? dir.path
-                toast(.success, "Pokémon esportato", URL(fileURLWithPath: path).lastPathComponent)
+                toast(.success, L("Pokémon esportato"), URL(fileURLWithPath: path).lastPathComponent)
                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
             }
         }
@@ -480,12 +482,12 @@ final class AppModel {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
-        panel.prompt = "Esporta box"
+        panel.prompt = L("Esporta box")
         guard panel.runModal() == .OK, let dir = panel.url else { return }
         Task {
-            await perform("Esporto il box…") {
+            await perform(L("Esporto il box…")) {
                 let paths: [String] = try await call("exportBox", ["box": currentBox, "dir": dir.path])
-                toast(.success, "\(paths.count) Pokémon esportati")
+                toast(.success, L("\(paths.count) Pokémon esportati"))
                 NSWorkspace.shared.open(dir)
             }
         }
@@ -496,7 +498,7 @@ final class AppModel {
             _ = try await send("importPk", ["path": url.path, "ref": ref.json])
             await afterMutation()
             await select(ref)
-            toast(.success, "Pokémon importato", url.lastPathComponent)
+            toast(.success, L("Pokémon importato"), url.lastPathComponent)
         }
     }
 
@@ -506,9 +508,9 @@ final class AppModel {
             let text = (try? JSONDecoder().decode(String.self, from: data)) ?? ""
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(text, forType: .string)
-            toast(.success, "Set Showdown copiato")
+            toast(.success, L("Set Showdown copiato"))
         } catch {
-            toast(.error, "Impossibile esportare", error.localizedDescription)
+            toast(.error, L("Impossibile esportare"), error.localizedDescription)
         }
     }
 
@@ -551,27 +553,27 @@ final class AppModel {
     }
 
     func legalize(_ ref: SlotRef) async {
-        await perform("Auto Legality al lavoro…") {
+        await perform(L("Auto Legality al lavoro…")) {
             let r: LegalizeResult = try await call("legalize", ["ref": ref.json])
             await afterMutation()
-            if r.after && !r.before { toast(.success, "Ora è legale", "Auto Legality ha rigenerato il Pokémon.") }
-            else if r.after { toast(.info, "Era già legale") }
-            else { toast(.warning, "Non è stato possibile renderlo legale", "Prova a cambiare mosse o abilità.") }
+            if r.after && !r.before { toast(.success, L("Ora è legale"), L("Auto Legality ha rigenerato il Pokémon.")) }
+            else if r.after { toast(.info, L("Era già legale")) }
+            else { toast(.warning, L("Non è stato possibile renderlo legale"), L("Prova a cambiare mosse o abilità.")) }
         }
     }
 
     func legalizeBox() async {
-        await perform("Legalizzo il box…") {
+        await perform(L("Legalizzo il box…")) {
             let data = try await send("legalizeBox", ["box": currentBox])
             let fixed = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["fixedCount"] as? Int ?? 0
             await afterMutation()
-            toast(fixed > 0 ? .success : .info, fixed > 0 ? "\(fixed) Pokémon resi legali" : "Niente da sistemare")
+            toast(fixed > 0 ? .success : .info, fixed > 0 ? L("\(fixed) Pokémon resi legali") : L("Niente da sistemare"))
         }
     }
 
     func importShowdown(_ text: String) async -> [ImportResult] {
         var out: [ImportResult] = []
-        await perform("Genero i Pokémon legali…") {
+        await perform(L("Genero i Pokémon legali…")) {
             let start = firstEmptySlot() ?? 0
             out = try await call("importShowdown", ["text": text, "box": currentBox, "slot": start])
             await afterMutation()
@@ -582,17 +584,17 @@ final class AppModel {
     func firstEmptySlot() -> Int? { box?.slots.firstIndex { $0.empty && $0.locked != true } }
 
     func createPokemon(species: Int, form: Int, shiny: Bool, at ref: SlotRef) async {
-        await perform("Creo un Pokémon legale…") {
+        await perform(L("Creo un Pokémon legale…")) {
             let r: CreateResult = try await call("createPokemon", ["ref": ref.json, "species": species, "form": form, "shiny": shiny])
             await afterMutation()
             await select(ref)
-            toast(r.legal ? .success : .warning, r.legal ? "Pokémon creato, legale" : "Creato, ma non del tutto legale")
+            toast(r.legal ? .success : .warning, r.legal ? L("Pokémon creato, legale") : L("Creato, ma non del tutto legale"))
         }
     }
 
     func livingDex(shiny: Bool, forms: Bool) async -> LivingDexResult? {
         var out: LivingDexResult?
-        await perform("Genero il Pokédex vivente…") {
+        await perform(L("Genero il Pokédex vivente…")) {
             out = try await call("livingDex", ["startBox": currentBox, "shiny": shiny, "forms": forms])
             await afterMutation()
         }
@@ -604,10 +606,10 @@ final class AppModel {
     }
 
     func sort(_ id: String, startBox: Int, endBox: Int, checkForms: Bool, extra: [String]) async {
-        await perform("Ordino i box…") {
+        await perform(L("Ordino i box…")) {
             _ = try await send("sort", ["id": id, "startBox": startBox, "endBox": endBox, "checkForms": checkForms, "extra": extra])
             await afterMutation()
-            toast(.success, "Box ordinati", "Puoi annullare con ⌘Z.")
+            toast(.success, L("Box ordinati"), L("Puoi annullare con ⌘Z."))
         }
     }
 
@@ -629,7 +631,7 @@ final class AppModel {
             try? await refreshInfo()
             return t
         } catch {
-            toast(.error, "Modifica non applicata", error.localizedDescription)
+            toast(.error, L("Modifica non applicata"), error.localizedDescription)
             return nil
         }
     }
@@ -637,68 +639,68 @@ final class AppModel {
     func backups() async -> [BackupItem] { (try? await call("backups")) ?? [] }
 
     func restore(_ item: BackupItem) async {
-        await perform("Ripristino il backup…") {
+        await perform(L("Ripristino il backup…")) {
             save = try await call("restoreBackup", ["backup": item.path])
             try await reloadAll()
-            toast(.success, "Backup ripristinato", "Il file attuale è stato a sua volta salvato in un backup.")
+            toast(.success, L("Backup ripristinato"), L("Il file attuale è stato a sua volta salvato in un backup."))
         }
     }
 
     func eventsStatus() async -> EventsStatus? { try? await call("eventsStatus") }
 
     func downloadEvents() async {
-        await perform("Scarico il database eventi di Project Pokémon…") {
+        await perform(L("Scarico il database eventi di Project Pokémon…")) {
             _ = try await send("downloadEvents")
-            toast(.success, "Database eventi aggiornato", "Auto Legality ora può generare i Pokémon evento.")
+            toast(.success, L("Database eventi aggiornato"), L("Auto Legality ora può generare i Pokémon evento."))
         }
     }
 
     // LiveHeX
     func liveConnect(ip: String, port: Int) async -> LiveStatus? {
         var s: LiveStatus?
-        await perform("Mi collego al gioco…") { s = try await call("liveConnect", ["ip": ip, "port": port]) }
+        await perform(L("Mi collego al gioco…")) { s = try await call("liveConnect", ["ip": ip, "port": port]) }
         return s
     }
     func liveDisconnect() async { _ = try? await send("liveDisconnect") }
     func liveRead(box: Int) async {
-        await perform("Leggo il box dalla console…") {
+        await perform(L("Leggo il box dalla console…")) {
             _ = try await send("liveReadBox", ["box": box])
             if box != currentBox { await showBox(box) }
             await afterMutation()
-            toast(.success, "Box \(box + 1) letto dal gioco")
+            toast(.success, L("Box \(box + 1) letto dal gioco"))
         }
     }
     func liveWrite(box: Int) async {
-        await perform("Scrivo il box nella console…") {
+        await perform(L("Scrivo il box nella console…")) {
             _ = try await send("liveWriteBox", ["box": box])
-            toast(.success, "Box \(box + 1) inviato al gioco")
+            toast(.success, L("Box \(box + 1) inviato al gioco"))
         }
     }
 
     // HOME Live
     func homeConnect(ip: String, port: Int) async -> HomeConnectResult? {
         var r: HomeConnectResult?
-        await perform("Mi collego a Pokémon HOME…") { r = try await call("homeConnect", ["ip": ip, "port": port]) }
+        await perform(L("Mi collego a Pokémon HOME…")) { r = try await call("homeConnect", ["ip": ip, "port": port]) }
         return r
     }
     func homeDisconnect() async { _ = try? await send("homeDisconnect") }
     func homeBox(_ b: Int) async -> HomeBox? {
         do { return try await call("homeBox", ["box": b]) } catch {
-            toast(.error, "Lettura HOME non riuscita", error.localizedDescription)
+            toast(.error, L("Lettura HOME non riuscita"), error.localizedDescription)
             return nil
         }
     }
     func homeImport(homeBox: Int, homeSlot: Int, to ref: SlotRef) async {
-        await perform("Porto il Pokémon da HOME…") {
+        await perform(L("Porto il Pokémon da HOME…")) {
             _ = try await send("homeImport", ["homeBox": homeBox, "homeSlot": homeSlot, "ref": ref.json])
             await afterMutation()
-            toast(.success, "Importato da HOME", ref.label)
+            toast(.success, L("Importato da HOME"), ref.label)
         }
     }
     func homeDump(dir: URL, from: Int, to: Int, format: String) async {
-        await perform("Backup di HOME in corso…") {
+        await perform(L("Backup di HOME in corso…")) {
             let r: HomeDumpResult = try await call("homeDump", ["dir": dir.path, "fromBox": from, "toBox": to, "format": format])
-            toast(.success, "\(r.files) Pokémon salvati", r.dir)
+            toast(.success, L("\(r.files) Pokémon salvati"), r.dir)
             NSWorkspace.shared.open(dir)
         }
     }
@@ -711,18 +713,18 @@ final class AppModel {
         let core = hello?.versions.core
         let engineV = hello?.versions.engine
         if updater.engineUpdateAvailable(current: engineV), let pack = updater.enginePack {
-            if !silent { toast(.info, "Nuovo pacchetto motore \(pack.version)", "Aprilo da Impostazioni › Aggiornamenti.") }
+            if !silent { toast(.info, L("Nuovo pacchetto motore \(pack.version)"), L("Aprilo da Impostazioni › Aggiornamenti.")) }
         } else if updater.coreUpdateAvailable(current: core), let latest = updater.latestCore {
             if updater.autoInstallCore && save?.dirty != true {
                 await installCore(latest)
             } else {
-                toast(.info, "PKHeX.Core \(latest) disponibile", "Installalo da Impostazioni › Aggiornamenti.")
+                toast(.info, L("PKHeX.Core \(latest) disponibile"), L("Installalo da Impostazioni › Aggiornamenti."))
             }
         } else if !silent {
-            toast(.success, "Tutto aggiornato", "PKHeX.Core \(core ?? "?")")
+            toast(.success, L("Tutto aggiornato"), L("PKHeX.Core \(core ?? "?")"))
         }
         if updater.appUpdateAvailable, let r = updater.appRelease {
-            toast(.info, "PkMac \(r.version) disponibile", "Aggiorna da Impostazioni › Aggiornamenti.")
+            toast(.info, L("PkMac \(r.version) disponibile"), L("Aggiorna da Impostazioni › Aggiornamenti."))
         }
     }
 
@@ -730,9 +732,9 @@ final class AppModel {
         guard await ensureSavedBeforeRestart() else { return }
         if await updater.installCore(version: version, savePath: save?.path) != nil {
             await restartEngine()
-            toast(.success, "PKHeX.Core \(hello?.versions.core ?? version) attivo", "Aggiornato senza ricompilare l'app.")
+            toast(.success, L("PKHeX.Core \(hello?.versions.core ?? version) attivo"), L("Aggiornato senza ricompilare l'app."))
         } else if case .failed(let msg) = updater.phase {
-            toast(.warning, "Aggiornamento del core annullato", msg)
+            toast(.warning, L("Aggiornamento del core annullato"), msg)
         }
     }
 
@@ -740,7 +742,7 @@ final class AppModel {
         guard let pack = updater.enginePack, await ensureSavedBeforeRestart() else { return }
         if await updater.installEnginePack(pack, savePath: save?.path) != nil {
             await restartEngine()
-            toast(.success, "Motore \(hello?.versions.engine ?? pack.version) attivo")
+            toast(.success, L("Motore \(hello?.versions.engine ?? pack.version) attivo"))
         }
     }
 
@@ -748,16 +750,16 @@ final class AppModel {
         guard await ensureSavedBeforeRestart() else { return }
         EngineManager.resetToBundled()
         await restartEngine()
-        toast(.info, "Tornato al motore incluso nell'app", "PKHeX.Core \(hello?.versions.core ?? "?")")
+        toast(.info, L("Tornato al motore incluso nell'app"), L("PKHeX.Core \(hello?.versions.core ?? "?")"))
     }
 
     private func ensureSavedBeforeRestart() async -> Bool {
         guard save?.dirty == true else { return true }
         let alert = NSAlert()
-        alert.messageText = "Salvare prima di aggiornare?"
-        alert.informativeText = "Il motore verrà riavviato e il salvataggio riaperto dal disco."
-        alert.addButton(withTitle: "Salva e continua")
-        alert.addButton(withTitle: "Annulla")
+        alert.messageText = L("Salvare prima di aggiornare?")
+        alert.informativeText = L("Il motore verrà riavviato e il salvataggio riaperto dal disco.")
+        alert.addButton(withTitle: L("Salva e continua"))
+        alert.addButton(withTitle: L("Annulla"))
         guard alert.runModal() == .alertFirstButtonReturn else { return false }
         await saveFile()
         return save?.dirty != true
@@ -772,7 +774,7 @@ final class AppModel {
         let pkExt = ["pk1","pk2","pk3","pk4","pk5","pk6","pk7","pk8","pk9","pb7","pb8","pa8","pa9","ck3","xk3","bk4","rk4","sk2"]
         if pkExt.contains(ext), save != nil {
             let target = ref ?? firstEmptySlot().map { SlotRef.box(currentBox, $0) }
-            guard let target else { toast(.warning, "Box pieno", "Trascina il file su uno slot."); return }
+            guard let target else { toast(.warning, L("Box pieno"), L("Trascina il file su uno slot.")); return }
             await importPk(url, to: target)
         } else {
             await open(url)

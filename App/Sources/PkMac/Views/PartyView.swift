@@ -8,7 +8,7 @@ struct PartyView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Header(title: "Squadra", subtitle: "\(model.party.filter { !$0.empty }.count) di 6 Pokémon", symbol: "person.3.fill", tint: AppSection.party.tint)
+                Header(title: L("Squadra"), subtitle: L("\(model.party.filter { !$0.empty }.count) di 6 Pokémon"), symbol: "person.3.fill", tint: AppSection.party.tint)
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 250, maximum: 360), spacing: 16)], spacing: 16) {
                     ForEach(model.party) { p in
                         PartyCard(slot: p)
@@ -44,7 +44,7 @@ private struct PartyCard: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 if slot.empty {
-                    Text("Slot libero").font(.system(size: 15, weight: .semibold, design: .rounded)).foregroundStyle(.secondary)
+                    Text(L("Slot libero")).font(.system(size: 15, weight: .semibold, design: .rounded)).foregroundStyle(.secondary)
                 } else {
                     HStack(spacing: 4) {
                         Text(slot.displayName).font(.system(size: 17, weight: .bold, design: .rounded)).lineLimit(1)
@@ -63,7 +63,7 @@ private struct PartyCard: View {
             }
             Spacer(minLength: 0)
             if slot.legal == false {
-                Image(systemName: "exclamationmark.octagon.fill").foregroundStyle(.red).help("Non legale")
+                Image(systemName: "exclamationmark.octagon.fill").foregroundStyle(.red).help(L("Non legale"))
             }
         }
         .padding(14)
@@ -132,17 +132,17 @@ struct OverviewView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Header(title: "Panoramica", subtitle: model.save.map { "\($0.game) · \($0.ot)" } ?? "", symbol: "chart.pie.fill", tint: AppSection.overview.tint)
+                Header(title: L("Panoramica"), subtitle: model.save.map { "\($0.game) · \($0.ot)" } ?? "", symbol: "chart.pie.fill", tint: AppSection.overview.tint)
                 if let d = data {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 14)], spacing: 14) {
-                        Tile(title: "Pokémon", value: "\(d.total)", detail: "su \(d.capacity) posti nei box", symbol: "square.grid.3x3.fill", tint: .blue)
-                        RingTile(title: "Specie uniche", value: d.uniqueSpecies, total: d.maxSpecies, tint: .purple)
-                        Tile(title: "Cromatici", value: "\(d.shiny)", detail: d.total > 0 ? String(format: "%.1f%% della collezione", Double(d.shiny) / Double(d.total) * 100) : "", symbol: "sparkles", tint: .yellow)
-                        Tile(title: "Da sistemare", value: "\(d.illegal)", detail: d.illegal == 0 ? "tutto legale" : "non legali", symbol: d.illegal == 0 ? "checkmark.seal.fill" : "exclamationmark.octagon.fill", tint: d.illegal == 0 ? .green : .red)
-                        if d.eggs > 0 { Tile(title: "Uova", value: "\(d.eggs)", detail: "in attesa di schiudersi", symbol: "oval.portrait.fill", tint: .orange) }
+                        Tile(title: "Pokémon", value: "\(d.total)", detail: L("su \(d.capacity) posti nei box"), symbol: "square.grid.3x3.fill", tint: .blue)
+                        RingTile(title: L("Specie uniche"), value: d.uniqueSpecies, total: d.maxSpecies, tint: .purple)
+                        Tile(title: L("Cromatici"), value: "\(d.shiny)", detail: d.total > 0 ? String(format: "%.1f%% della collezione", Double(d.shiny) / Double(d.total) * 100) : "", symbol: "sparkles", tint: .yellow)
+                        Tile(title: L("Da sistemare"), value: "\(d.illegal)", detail: d.illegal == 0 ? L("tutto legale") : L("non legali"), symbol: d.illegal == 0 ? "checkmark.seal.fill" : "exclamationmark.octagon.fill", tint: d.illegal == 0 ? .green : .red)
+                        if d.eggs > 0 { Tile(title: L("Uova"), value: "\(d.eggs)", detail: L("in attesa di schiudersi"), symbol: "oval.portrait.fill", tint: .orange) }
                     }
                     HStack(alignment: .top, spacing: 14) {
-                        Card(title: "Tipi più presenti", symbol: "circle.hexagongrid.fill", tint: .pink) {
+                        Card(title: L("Tipi più presenti"), symbol: "circle.hexagongrid.fill", tint: .pink) {
                             Chart(d.types.prefix(10), id: \.type) { t in
                                 BarMark(x: .value("Pokémon", t.count), y: .value("Tipo", PokeType(key: t.type).italian))
                                     .foregroundStyle(PokeType(key: t.type).color.gradient)
@@ -154,7 +154,7 @@ struct OverviewView: View {
                             .chartXAxis(.hidden)
                             .frame(height: 280)
                         }
-                        Card(title: "Livelli", symbol: "chart.bar.fill", tint: .teal) {
+                        Card(title: L("Livelli"), symbol: "chart.bar.fill", tint: .teal) {
                             Chart(Array(d.levels.enumerated()), id: \.offset) { i, v in
                                 BarMark(x: .value("Livello", "\(i * 10 + 1)–\(i * 10 + 10)"), y: .value("Pokémon", v))
                                     .foregroundStyle(Theme.brand)
@@ -167,7 +167,7 @@ struct OverviewView: View {
                         Button {
                             model.searchText = "illegale"
                         } label: {
-                            Label("Mostra i \(d.illegal) Pokémon non legali", systemImage: "magnifyingglass")
+                            Label(L("Mostra i \(d.illegal) Pokémon non legali"), systemImage: "magnifyingglass")
                         }
                         .buttonStyle(.glass)
                     }
@@ -332,7 +332,7 @@ struct TrainerView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                Header(title: "Allenatore", subtitle: "Dati del giocatore nel salvataggio", symbol: "person.text.rectangle.fill", tint: AppSection.trainer.tint)
+                Header(title: L("Allenatore"), subtitle: L("Dati del giocatore nel salvataggio"), symbol: "person.text.rectangle.fill", tint: AppSection.trainer.tint)
                 if let t {
                     TrainerCard(t: t, previewName: name, previewGender: gender)
                         .frame(maxWidth: 620)
@@ -344,11 +344,11 @@ struct TrainerView: View {
                     HStack {
                         Button {
                             model.section = .advanced
-                        } label: { Label("Tutti gli altri campi del salvataggio…", systemImage: "slider.horizontal.below.square.and.square.filled") }
+                        } label: { Label(L("Tutti gli altri campi del salvataggio…"), systemImage: "slider.horizontal.below.square.and.square.filled") }
                         .buttonStyle(.glass)
                         Spacer()
-                        Button("Ripristina") { load(t) }.buttonStyle(.glass)
-                        Button { Task { await apply(t) } } label: { Label("Applica modifiche", systemImage: "checkmark") }
+                        Button(L("Ripristina")) { load(t) }.buttonStyle(.glass)
+                        Button { Task { await apply(t) } } label: { Label(L("Applica modifiche"), systemImage: "checkmark") }
                             .buttonStyle(.glassProminent)
                             .keyboardShortcut(.return, modifiers: .command)
                     }
@@ -377,59 +377,59 @@ struct TrainerView: View {
     }
 
     private func identity(_ t: TrainerData) -> some View {
-        Card(title: "Identità", symbol: "person.crop.circle.fill", tint: .teal) {
+        Card(title: L("Identità"), symbol: "person.crop.circle.fill", tint: .teal) {
             VStack(spacing: 12) {
-                row("Nome (OT)") {
-                    TextField("Nome", text: $name).textFieldStyle(.roundedBorder)
+                row(L("Nome (OT)")) {
+                    TextField(L("Nome"), text: $name).textFieldStyle(.roundedBorder)
                     Text("\(name.count)/\(t.maxOtLength)").font(.caption.monospacedDigit()).foregroundStyle(name.count > t.maxOtLength ? .red : .secondary)
                 }
                 if t.hasGender ?? true {
-                    row("Personaggio") {
+                    row(L("Personaggio")) {
                         Picker("", selection: $gender) {
-                            Label("Ragazzo", systemImage: "figure.stand").tag(0)
-                            Label("Ragazza", systemImage: "figure.stand.dress").tag(1)
+                            Label(L("Ragazzo"), systemImage: "figure.stand").tag(0)
+                            Label(L("Ragazza"), systemImage: "figure.stand.dress").tag(1)
                         }
                         .pickerStyle(.segmented).labelsHidden()
                     }
                 }
-                row(t.idFormat == "6" ? "ID (6 cifre)" : "ID allenatore") {
+                row(t.idFormat == "6" ? L("ID (6 cifre)") : L("ID allenatore")) {
                     TextField("ID", text: $tid).textFieldStyle(.roundedBorder).monospacedDigit()
                     Text("max \(t.tidMax ?? 65535)").font(.caption).foregroundStyle(.tertiary)
                 }
                 if t.hasSid ?? true {
-                    row("ID segreto") {
+                    row(L("ID segreto")) {
                         TextField("SID", text: $sid).textFieldStyle(.roundedBorder).monospacedDigit()
                         Text("max \(t.sidMax ?? 65535)").font(.caption).foregroundStyle(.tertiary)
                     }
                 }
                 if let langs = t.languages, !langs.isEmpty {
-                    row("Lingua") {
+                    row(L("Lingua")) {
                         Picker("", selection: $language) {
                             ForEach(langs, id: \.v) { Text($0.t).tag($0.v) }
                         }
                         .labelsHidden()
                     }
                 }
-                Text("Cambiare ID o ID segreto rende \"non tuoi\" i Pokémon già catturati (scambio): fallo solo se sai cosa stai facendo.")
+                Text(L("Cambiare ID o ID segreto rende \"non tuoi\" i Pokémon già catturati (scambio): fallo solo se sai cosa stai facendo."))
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
     }
 
     private func progress(_ t: TrainerData) -> some View {
-        Card(title: "Progressi", symbol: "clock.fill", tint: .orange) {
+        Card(title: L("Progressi"), symbol: "clock.fill", tint: .orange) {
             VStack(spacing: 12) {
-                row("Soldi") {
-                    TextField("Soldi", text: $money).textFieldStyle(.roundedBorder).monospacedDigit()
-                    Button("Max") { money = "\(t.maxMoney)" }.buttonStyle(.glass).controlSize(.small)
+                row(L("Soldi")) {
+                    TextField(L("Soldi"), text: $money).textFieldStyle(.roundedBorder).monospacedDigit()
+                    Button(L("Max")) { money = "\(t.maxMoney)" }.buttonStyle(.glass).controlSize(.small)
                 }
-                row("Tempo di gioco") {
+                row(L("Tempo di gioco")) {
                     Stepper(value: $hours, in: 0...(t.maxHours ?? 999)) { Text("\(hours) h").monospacedDigit().frame(width: 52, alignment: .trailing) }
                     Stepper(value: $minutes, in: 0...59) { Text("\(minutes) m").monospacedDigit().frame(width: 40, alignment: .trailing) }
                     Stepper(value: $seconds, in: 0...59) { Text("\(seconds) s").monospacedDigit().frame(width: 36, alignment: .trailing) }
                 }
                 if let b = t.badges {
-                    row("Medaglie") {
+                    row(L("Medaglie")) {
                         HStack(spacing: 5) {
                             ForEach(0..<b.count, id: \.self) { i in
                                 let on = badges & (1 << i) != 0
@@ -441,17 +441,17 @@ struct TrainerView: View {
                                         .foregroundStyle(on ? AnyShapeStyle(LinearGradient(colors: [.yellow, .orange], startPoint: .top, endPoint: .bottom)) : AnyShapeStyle(.tertiary))
                                 }
                                 .buttonStyle(.plain)
-                                .help("Medaglia \(i + 1)")
+                                .help(L("Medaglia \(i + 1)"))
                             }
-                            Button("Tutte") { badges = (1 << b.count) - 1 }.buttonStyle(.glass).controlSize(.small)
+                            Button(L("Tutte")) { badges = (1 << b.count) - 1 }.buttonStyle(.glass).controlSize(.small)
                         }
                     }
                 }
                 if let seen = t.seenCount, let caught = t.caughtCount, seen + caught > 0 {
                     row("Pokédex") {
-                        Text("\(seen) visti · \(caught) catturati").foregroundStyle(.secondary)
+                        Text(L("\(seen) visti · \(caught) catturati")).foregroundStyle(.secondary)
                         Spacer()
-                        Button("Apri") { model.section = .pokedex }.buttonStyle(.glass).controlSize(.small)
+                        Button(L("Apri")) { model.section = .pokedex }.buttonStyle(.glass).controlSize(.small)
                     }
                 }
             }
@@ -469,7 +469,7 @@ struct TrainerView: View {
         if let nt = await model.setTrainer(p) {
             self.t = nt
             load(nt)
-            model.toast(.success, "Dati allenatore aggiornati")
+            model.toast(.success, L("Dati allenatore aggiornati"))
         }
     }
 }
@@ -488,15 +488,15 @@ private struct TrainerCard: View {
             Circle().fill(.white.opacity(0.07)).frame(width: 180).offset(x: 420, y: 120)
             HStack(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("TRAINER CARD").font(.system(size: 11, weight: .heavy, design: .rounded)).tracking(2).opacity(0.8)
+                    Text(L("TRAINER CARD")).font(.system(size: 11, weight: .heavy, design: .rounded)).tracking(2).opacity(0.8)
                     Text(previewName.isEmpty ? t.ot : previewName).font(.system(size: 34, weight: .heavy, design: .rounded)).lineLimit(1)
                     HStack(spacing: 28) {
                         field("ID", "\(t.tid)")
-                        field("Gioco", t.game)
+                        field(L("Gioco"), t.game)
                     }
                     HStack(spacing: 28) {
-                        field("Soldi", "₽ \(t.money.formatted())")
-                        field("Tempo di gioco", "\(t.hours)h \(t.minutes)m")
+                        field(L("Soldi"), "₽ \(t.money.formatted())")
+                        field(L("Tempo di gioco"), "\(t.hours)h \(t.minutes)m")
                     }
                 }
                 Spacer(minLength: 0)

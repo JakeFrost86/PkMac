@@ -222,7 +222,10 @@ public static class FeatureTest
                         var pk = s.Get(r);
                         var la = new LegalityAnalysis(pk);
                         var moves = string.Join(",", pk.Moves.Where(m => m != 0));
-                        var info = $"{res["status"]} legale={la.Valid} mosse=[{moves}] lv{pk.CurrentLevel} {sw.ElapsedMilliseconds}ms";
+                        var info = $"{res["status"]} legale={la.Valid} mosse=[{moves}] lv{pk.CurrentLevel} OT={pk.OriginalTrainerName}/{pk.TID16} lingua={pk.Language} {sw.ElapsedMilliseconds}ms";
+                        if (pk.OriginalTrainerName != sav.OT || (sav.Language > 0 && pk.Language != sav.Language))
+                            throw new Exception("OT/lingua non del salvataggio: " + info + $" (save: {sav.OT}/{sav.TID16} lingua={sav.Language})");
+                        info += $" (save {sav.OT}/{sav.TID16} lingua={sav.Language})";
                         if (!la.Valid) throw new Exception(info + " · " + la.Report(s.Language).Replace("\n", " | "));
                         // Strip the moves and ask "Rendi legale" to fix it.
                         var bad = pk.Clone(); bad.SetMoves(new ushort[4]); bad.RefreshChecksum();
@@ -234,6 +237,24 @@ public static class FeatureTest
                         return info + $" · rendi legale ok mosse=[{string.Join(",", after.Moves.Where(m => m != 0))}]";
                     });
                 }
+            }
+            if (sav.HasBox && sav.Generation >= 3)
+            {
+                T(g, "origine", () =>
+                {
+                    var r = new SlotRef(false, Math.Min(1, sav.BoxCount - 1), 3);
+                    if (s.Get(r).Species == 0) AutoLegality.Create(s, r, (ushort)Species.Pikachu, 0, false);
+                    var before = s.Get(r);
+                    var ch = new JsonObject { ["otGender"] = 1, ["metLevel"] = 7, ["fateful"] = true };
+                    if (before.Format >= 4) ch["metDate"] = "2024-05-06";
+                    if (before.Format >= 6) { ch["htName"] = "Handler"; ch["rerollEc"] = true; }
+                    var d = ToNode(Storage.Update(s, r, new Params(ch)));
+                    var pk = s.Get(r);
+                    if (pk.MetLevel != 7 || pk.OriginalTrainerGender != 1 || !pk.FatefulEncounter) throw new Exception("campi non applicati");
+                    if (pk.Format >= 4 && pk.MetDate?.ToString("yyyy-MM-dd") != "2024-05-06") throw new Exception("data non applicata");
+                    var o = d["origin"]!;
+                    return $"lv{o["metLevel"]} data={o["metDate"]} ot♀={o["otGender"]} ec={o["ec"]} legale={d["legality"]!["valid"]}";
+                });
             }
             T(g, "write", () =>
             {

@@ -26,6 +26,46 @@ public static class AutoLegality
         return true;
     }
 
+    /// <summary>
+    /// Makes ALM use the trainer of the save being edited (OT, IDs, gender, language, 3DS region) for every
+    /// game version instead of its own "ALM" fallback trainer.
+    /// </summary>
+    public static void UseSaveTrainer(SaveFile sav)
+    {
+        TrainerSettings.Clear();
+        var lang = sav.Language > 0 ? sav.Language : (int)LanguageID.English;
+        byte cr = 1, rg = 7, co = 49;
+        if (sav is IRegionOriginReadOnly geo) { cr = geo.ConsoleRegion; rg = geo.Region; co = geo.Country; }
+        foreach (var v in GameUtil.GameVersions)
+        {
+            if (v == GameVersion.Any) continue;
+            try
+            {
+                var t = new SimpleTrainerInfo(v) { OT = sav.OT, TID16 = sav.TID16, SID16 = sav.SID16, Gender = sav.Gender, Language = lang };
+                if (t.Context is EntityContext.Gen6 or EntityContext.Gen7)
+                    t = t with { ConsoleRegion = cr, Region = rg, Country = co };
+                TrainerSettings.Register(t);
+            }
+            catch { /* versions without a context */ }
+        }
+        TrainerSettings.DefaultOT = sav.OT;
+        TrainerSettings.DefaultTID16 = sav.TID16;
+        TrainerSettings.DefaultSID16 = sav.SID16;
+    }
+
+    /// <summary>Generated Pokémon speak the language of the save they are created in (when that stays legal).</summary>
+    public static PKM ApplySaveLanguage(PKM pk, SaveFile sav)
+    {
+        if (sav.Language <= 0 || pk.Language == sav.Language || pk.Format <= 2)
+            return pk;
+        var copy = pk.Clone();
+        bool nick = copy.IsNicknamed;
+        copy.Language = sav.Language;
+        if (!nick) copy.ClearNickname();
+        copy.RefreshChecksum();
+        return new LegalityAnalysis(copy).Valid || !new LegalityAnalysis(pk).Valid ? copy : pk;
+    }
+
     public static string EventsFolder => Path.Combine(SaveIO.AppSupport, "mgdb");
 
     /// <summary>Loads the Project Pokémon event gallery (if downloaded) so ALM can generate event Pokémon.</summary>
@@ -76,8 +116,9 @@ public static class AutoLegality
 
     public static object Legalize(Session s, SlotRef r)
     {
+        UseSaveTrainer(s.Sav);
         var pk = s.Get(r);
-        if (pk.Species == 0) throw new EngineException("Lo slot è vuoto.");
+        if (pk.Species == 0) throw new EngineException(Tr.T($"Lo slot è vuoto."));
         var before = new LegalityAnalysis(pk).Valid;
         PKM result;
         // 1) PKHeX's own suggestions (moves, relearn moves, met data) — the same fixes PKHeX offers.
@@ -87,7 +128,7 @@ public static class AutoLegality
         if (!after)
         {
             try { using (new EnglishScope()) result = s.Sav.Legalize(pk); }
-            catch (MissingMethodException) { throw new EngineException("Auto Legality non è compatibile con questa versione del core. Aggiorna il pacchetto motore dalle impostazioni."); }
+            catch (MissingMethodException) { throw new EngineException(Tr.T($"Auto Legality non è compatibile con questa versione del core. Aggiorna il pacchetto motore dalle impostazioni.")); }
             result.Heal();
             after = new LegalityAnalysis(result).Valid;
         }
@@ -98,13 +139,14 @@ public static class AutoLegality
             after = true;
         }
         if (after)
-            s.Set(r, result, settings: default(EntityImportSettings), label: "Legalizza");
+            s.Set(r, result, settings: default(EntityImportSettings), label: Tr.T($"Legalizza"));
         return new { before, after, applied = after, detail = Describe.Detail(s, r, s.Get(r)) };
     }
 
     public static object LegalizeBox(Session s, int box)
     {
-        s.Snapshot("Legalizza box");
+        UseSaveTrainer(s.Sav);
+        s.Snapshot(Tr.T($"Legalizza box"));
         int fixedCount;
         using (new EnglishScope()) fixedCount = s.Sav.LegalizeBox(box);
         s.Dirty = true;
@@ -113,6 +155,7 @@ public static class AutoLegality
 
     public static object ImportShowdown(Session s, string text, int box, int slot)
     {
+        UseSaveTrainer(s.Sav);
         var sav = s.Sav;
         text = text.Trim();
         // Pokepaste / Pastebin links are resolved by ALM's TeamPasteInfo.
@@ -120,7 +163,7 @@ public static class AutoLegality
         {
             var paste = new TeamPasteInfo(text);
             if (!paste.Valid)
-                throw new EngineException("Impossibile leggere il link (supportati: pokepast.es, pastebin).");
+                throw new EngineException(Tr.T($"Impossibile leggere il link (supportati: pokepast.es, pastebin)."));
             text = paste.Sets;
         }
         List<ShowdownSet> list;
@@ -132,11 +175,11 @@ public static class AutoLegality
             list = sets.Where(z => z.Species != 0).ToList();
         }
         if (list.Count == 0)
-            throw new EngineException("Nessun set Showdown valido trovato nel testo.");
+            throw new EngineException(Tr.T($"Nessun set Showdown valido trovato nel testo."));
 
         var results = new List<object>();
         int index = box * sav.BoxSlotCount + slot;
-        s.Snapshot(list.Count == 1 ? "Importa set" : $"Importa {list.Count} set");
+        s.Snapshot(list.Count == 1 ? Tr.T($"Importa set") : Tr.T($"Importa {list.Count} set"));
         foreach (var set in list)
         {
             // next empty, writable slot
@@ -154,7 +197,7 @@ public static class AutoLegality
             }
             APILegality.AsyncLegalizationResult res;
             using (new EnglishScope()) res = sav.GetLegalFromSet(new RegenTemplate(set, sav.Generation));
-            var pk = res.Created;
+            var pk = ApplySaveLanguage(res.Created, sav);
             pk.ResetPartyStats();
             pk.SetBoxForm();
             var legal = new LegalityAnalysis(pk).Valid;
@@ -168,6 +211,7 @@ public static class AutoLegality
 
     public static object Create(Session s, SlotRef r, ushort species, byte form, bool shiny)
     {
+        UseSaveTrainer(s.Sav);
         var sav = s.Sav;
         PKM? pk = null;
         string status;
@@ -191,14 +235,16 @@ public static class AutoLegality
         // Fallback: PKHeX's own encounter generator (what its Encounter Database does).
         pk ??= Encounters.CreateLegal(sav, species, form, shiny);
         if (pk is null)
-            throw new EngineException("Nessun incontro legale trovato per questa specie/forma in questo gioco.");
+            throw new EngineException(Tr.T($"Nessun incontro legale trovato per questa specie/forma in questo gioco."));
+        pk = ApplySaveLanguage(pk, sav);
         pk.ResetPartyStats();
-        s.Set(r, pk, settings: default(EntityImportSettings), label: "Nuovo Pokémon");
+        s.Set(r, pk, settings: default(EntityImportSettings), label: Tr.T($"Nuovo Pokémon"));
         return new { status, legal = new LegalityAnalysis(s.Get(r)).Valid, detail = Describe.Detail(s, r, s.Get(r)) };
     }
 
     public static object LivingDex(Session s, int startBox, bool shiny, bool forms)
     {
+        UseSaveTrainer(s.Sav);
         var sav = s.Sav;
         var cfg = ModLogic.Config with { SetShiny = shiny, IncludeForms = forms, TransferVersion = sav.Version };
         ModLogic.TrackingCount = 0;
@@ -220,14 +266,14 @@ public static class AutoLegality
         }
         finally { cts.Cancel(); }
 
-        s.Snapshot("Pokédex vivente");
+        s.Snapshot(Tr.T($"Pokédex vivente"));
         int placed = 0, index = startBox * sav.BoxSlotCount;
         foreach (var pk in generated)
         {
             while (index < sav.SlotCount && (sav.GetBoxSlotAtIndex(index).Species != 0 || sav.IsBoxSlotOverwriteProtected(index)))
                 index++;
             if (index >= sav.SlotCount) break;
-            sav.SetBoxSlotAtIndex(pk, index, EntityImportSettings.None);
+            sav.SetBoxSlotAtIndex(ApplySaveLanguage(pk, sav), index, EntityImportSettings.None);
             placed++;
             index++;
         }

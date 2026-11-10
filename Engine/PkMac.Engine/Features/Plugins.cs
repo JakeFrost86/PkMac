@@ -8,14 +8,14 @@ namespace PkMac.Engine.Features;
 public static class Sorting
 {
     public static object Options(Session s, bool areas)
-        => SortingCatalog.GetOptions(s.Sav, areas).Select(o => new { id = o.Id, name = o.Name, group = o.Group }).ToArray();
+        => SortingCatalog.GetOptions(s.Sav, areas).Select(o => new { id = o.Id, name = Tr.S(o.Name), group = Tr.S(o.Group) }).ToArray();
 
     public static object Sort(Session s, Params p)
     {
         var sav = s.Sav;
         var id = p.Str("id");
         var option = SortingCatalog.GetOptions(sav, includeAreas: true).FirstOrDefault(o => o.Id == id)
-                     ?? throw new EngineException("Ordinamento non disponibile per questo gioco.");
+                     ?? throw new EngineException(Tr.T($"Ordinamento non disponibile per questo gioco."));
         var begin = Math.Clamp(p.Int("startBox", 0), 0, sav.BoxCount - 1);
         var end = p.Int("endBox", -1);
         if (end >= sav.BoxCount) end = -1;
@@ -45,12 +45,12 @@ public static class SpecialFinder
                 case Species.Dunsparce when sav.Generation >= 6:
                     dunsparce++;
                     if (pk.EncryptionConstant % 100 == 0)
-                        found.Add(new { kind = "dunsparce3", label = "Dunsparce a tre segmenti", hint = "Evolve in Dudunsparce Forma Trimetrica", pokemon = Describe.Slot(s, r, pk, false) });
+                        found.Add(new { kind = "dunsparce3", label = Tr.T($"Dunsparce a tre segmenti"), hint = Tr.T($"Evolve in Dudunsparce Forma Trimetrica"), pokemon = Describe.Slot(s, r, pk, false) });
                     break;
                 case Species.Tandemaus when sav.Generation >= 6:
                     tandemaus++;
                     if (pk.EncryptionConstant % 100 == 0)
-                        found.Add(new { kind = "family3", label = "Tandemaus famiglia da tre", hint = "Evolve in Maushold Famiglia da Tre", pokemon = Describe.Slot(s, r, pk, false) });
+                        found.Add(new { kind = "family3", label = Tr.T($"Tandemaus famiglia da tre"), hint = Tr.T($"Evolve in Maushold Famiglia da Tre"), pokemon = Describe.Slot(s, r, pk, false) });
                     break;
                 case Species.Wurmple:
                     wurmple++;
@@ -58,8 +58,8 @@ public static class SpecialFinder
                     found.Add(new
                     {
                         kind = evo == WurmpleEvolution.Silcoon ? "beautifly" : "dustox",
-                        label = evo == WurmpleEvolution.Silcoon ? "Wurmple → Beautifly" : "Wurmple → Dustox",
-                        hint = evo == WurmpleEvolution.Silcoon ? "Diventerà Silcoon, poi Beautifly" : "Diventerà Cascoon, poi Dustox",
+                        label = evo == WurmpleEvolution.Silcoon ? Tr.T($"Wurmple → Beautifly") : Tr.T($"Wurmple → Dustox"),
+                        hint = evo == WurmpleEvolution.Silcoon ? Tr.T($"Diventerà Silcoon, poi Beautifly") : Tr.T($"Diventerà Cascoon, poi Dustox"),
                         pokemon = Describe.Slot(s, r, pk, false),
                     });
                     break;
@@ -110,7 +110,7 @@ public static class FileNaming
     public static object RenameFolder(string dir)
     {
         if (!Directory.Exists(dir))
-            throw new EngineException("Cartella non trovata.");
+            throw new EngineException(Tr.T($"Cartella non trovata."));
         var before = Directory.GetFiles(dir).Length;
         BulkRename.RenameFolder(dir, EntityFileNamer.Namer, deep: false);
         return new { files = before };

@@ -80,7 +80,7 @@ private struct BoxHeader: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 if editing {
-                    TextField("Nome box", text: $newName)
+                    TextField(L("Nome box"), text: $newName)
                         .textFieldStyle(.plain)
                         .font(.system(size: 26, weight: .bold, design: .rounded))
                         .onSubmit {
@@ -97,10 +97,10 @@ private struct BoxHeader: View {
                             newName = model.box?.name ?? ""
                             editing = true
                         }
-                        .help(model.save?.canRenameBoxes == true ? "Doppio clic per rinominare" : "")
+                        .help(model.save?.canRenameBoxes == true ? L("Doppio clic per rinominare") : "")
                 }
                 let filled = model.box?.slots.filter { !$0.empty }.count ?? 0
-                Text("Box \(model.currentBox + 1) di \(model.save?.boxCount ?? 0) · \(filled)/\(model.box?.slots.count ?? 0) Pokémon")
+                Text(L("Box \(model.currentBox + 1) di \(model.save?.boxCount ?? 0) · \(filled)/\(model.box?.slots.count ?? 0) Pokémon"))
                     .font(.system(size: 12, design: .rounded))
                     .foregroundStyle(.secondary)
             }
@@ -110,16 +110,16 @@ private struct BoxHeader: View {
             GlassEffectContainer(spacing: 8) {
                 HStack(spacing: 8) {
                     Button { model.showShowdownImport = true } label: {
-                        Label("Importa Showdown", systemImage: "square.and.arrow.down.on.square")
+                        Label(L("Importa Showdown"), systemImage: "square.and.arrow.down.on.square")
                     }
                     Button { model.showCreate = true } label: {
-                        Label("Crea", systemImage: "plus")
+                        Label(L("Crea"), systemImage: "plus")
                     }
                     Menu {
-                        Button { Task { await model.legalizeBox() } } label: { Label("Legalizza tutto il box", systemImage: "wand.and.stars") }
-                        Button { model.exportBox() } label: { Label("Esporta box come file .pk…", systemImage: "square.and.arrow.up") }
+                        Button { Task { await model.legalizeBox() } } label: { Label(L("Legalizza tutto il box"), systemImage: "wand.and.stars") }
+                        Button { model.exportBox() } label: { Label(L("Esporta box come file .pk…"), systemImage: "square.and.arrow.up") }
                         Divider()
-                        Button { model.section = .sorting } label: { Label("Ordina per Pokédex…", systemImage: "arrow.up.arrow.down") }
+                        Button { model.section = .sorting } label: { Label(L("Ordina per Pokédex…"), systemImage: "arrow.up.arrow.down") }
                     } label: {
                         Image(systemName: "ellipsis")
                             .frame(width: 18)
@@ -169,7 +169,7 @@ private struct BoxStrip: View {
                             .background(selected ? Color.accentColor.opacity(0.12) : .clear, in: .rect(cornerRadius: 8))
                         }
                         .buttonStyle(.plain)
-                        .help("\(b.name) · \(b.count) Pokémon — trascina qui un Pokémon per spostarlo in questo box")
+                        .help(L("\(b.name) · \(b.count) Pokémon — trascina qui un Pokémon per spostarlo in questo box"))
                         .modifier(BoxChipDrop(box: b.box, enabled: !Diag.off("CHIPDROP")))
                         .id(b.box)
                     }
@@ -208,7 +208,7 @@ private struct BoxChipDrop: ViewModifier {
                         if drag.save == "a" { await model.moveToBox(from: drag.ref, box: box, copy: copy) }
                         else if let empty = await firstEmpty() {
                             await model.transfer(from: drag, to: SlotDrag(save: "a", ref: .box(box, empty)), copy: copy)
-                        } else { model.toast(.warning, "Il box \(box + 1) è pieno") }
+                        } else { model.toast(.warning, L("Il box \(box + 1) è pieno")) }
                     }
                 }
             }
@@ -237,8 +237,8 @@ struct PartyDock: View {
     var body: some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 1) {
-                Text("Squadra").font(.system(size: 12, weight: .bold, design: .rounded))
-                Text("trascina ⇅").font(.system(size: 10, design: .rounded)).foregroundStyle(.secondary)
+                Text(L("Squadra")).font(.system(size: 12, weight: .bold, design: .rounded))
+                Text(L("trascina ⇅")).font(.system(size: 10, design: .rounded)).foregroundStyle(.secondary)
             }
             .frame(width: 64, alignment: .leading)
             ForEach(model.party) { p in
@@ -300,7 +300,7 @@ struct SlotCell: View {
         .onDrop(of: [.pkmacSlot, .fileURL], isTargeted: $targeted) { providers in
             handleDrop(providers)
         }
-        .help(slot.empty ? "Slot vuoto" : "\(slot.displayName) · Lv. \(slot.level ?? 0)\(slot.heldItemName.map { " · \($0)" } ?? "")")
+        .help(slot.empty ? L("Slot vuoto") : L("\(slot.displayName) · Lv. \(slot.level ?? 0)\(slot.heldItemName.map { " · \($0)" } ?? "")"))
     }
 
     @ViewBuilder private var background: some View {
@@ -341,7 +341,7 @@ struct SlotCell: View {
                 if slot.legal == false {
                     Circle().fill(.red).frame(width: 9, height: 9)
                         .overlay(Circle().stroke(.white, lineWidth: 1.5))
-                        .help("Non legale")
+                        .help(L("Non legale"))
                 }
             }
             Spacer()
@@ -383,17 +383,17 @@ struct SlotMenu: View {
 
     var body: some View {
         if slot.empty {
-            Button { model.selection = slot.ref; model.showCreate = true } label: { Label("Crea Pokémon qui…", systemImage: "plus") }
-            Button { model.showShowdownImport = true } label: { Label("Importa set Showdown…", systemImage: "doc.on.clipboard") }
+            Button { model.selection = slot.ref; model.showCreate = true } label: { Label(L("Crea Pokémon qui…"), systemImage: "plus") }
+            Button { model.showShowdownImport = true } label: { Label(L("Importa set Showdown…"), systemImage: "doc.on.clipboard") }
         } else {
-            Button { Task { await model.legalize(slot.ref) } } label: { Label("Rendi legale (Auto Legality)", systemImage: "wand.and.stars") }
-            Button { Task { await model.copyShowdown(slot.ref) } } label: { Label("Copia set Showdown", systemImage: "doc.on.doc") }
-            Button { model.exportPk(slot.ref) } label: { Label("Esporta file .pk…", systemImage: "square.and.arrow.up") }
+            Button { Task { await model.legalize(slot.ref) } } label: { Label(L("Rendi legale (Auto Legality)"), systemImage: "wand.and.stars") }
+            Button { Task { await model.copyShowdown(slot.ref) } } label: { Label(L("Copia set Showdown"), systemImage: "doc.on.doc") }
+            Button { model.exportPk(slot.ref) } label: { Label(L("Esporta file .pk…"), systemImage: "square.and.arrow.up") }
             Divider()
-            Button { Task { await model.heal(slot.ref) } } label: { Label("Cura", systemImage: "cross.case.fill") }
-            Button { Task { await model.maxIVs(slot.ref) } } label: { Label("IV al massimo", systemImage: "chart.bar.fill") }
+            Button { Task { await model.heal(slot.ref) } } label: { Label(L("Cura"), systemImage: "cross.case.fill") }
+            Button { Task { await model.maxIVs(slot.ref) } } label: { Label(L("IV al massimo"), systemImage: "chart.bar.fill") }
             Divider()
-            Button(role: .destructive) { Task { await model.delete(slot.ref) } } label: { Label("Rilascia", systemImage: "trash") }
+            Button(role: .destructive) { Task { await model.delete(slot.ref) } } label: { Label(L("Rilascia"), systemImage: "trash") }
         }
     }
 }

@@ -15,7 +15,7 @@ struct SlotRef: Codable, Hashable, Sendable {
         return d
     }
 
-    var label: String { isParty ? "Squadra · \(slot + 1)" : "Box \((box ?? 0) + 1) · \(slot + 1)" }
+    var label: String { isParty ? L("Squadra · \(slot + 1)") : L("Box \((box ?? 0) + 1) · \(slot + 1)") }
 }
 
 struct SlotSummary: Codable, Hashable, Identifiable, Sendable {
@@ -176,6 +176,7 @@ struct PokemonDetail: Codable, Sendable {
     var version: Int
     var versionName: String
     var language: Int
+    var origin: OriginData?
     var friendship: Int
     var exp: UInt32
     var teraType: String?
@@ -548,7 +549,7 @@ struct GiftCard: Codable, Hashable, Sendable {
     var displayTitle: String {
         let t = (title ?? "").trimmingCharacters(in: .whitespaces)
         if !t.isEmpty { return t }
-        return speciesName ?? item ?? "Dono"
+        return speciesName ?? item ?? L("Dono")
     }
 }
 
@@ -692,4 +693,44 @@ struct TransferCheck: Codable, Sendable {
 struct SlotDrag: Codable, Hashable, Sendable {
     var save: String
     var ref: SlotRef
+}
+
+
+struct OriginData: Codable, Hashable, Sendable {
+    var ball: Int
+    var version: Int
+    var metLocation: Int
+    var metLevel: Int
+    var metDate: String?
+    var eggLocation: Int
+    var eggDate: String?
+    var wasEgg: Bool
+    var isEgg: Bool
+    var fateful: Bool
+    var hasFateful: Bool
+    var hasDates: Bool
+    var hasEgg: Bool
+    var hasVersion: Bool
+    var hasMet: Bool
+    var otGender: Int
+    var hasOtGender: Bool
+    var tid: UInt32
+    var sid: UInt32
+    var hasSid: Bool
+    var tidMax: Int
+    var sidMax: Int
+    var language: Int
+    var hasHandler: Bool
+    var htName: String
+    var htGender: Int
+    var currentHandler: Int
+    var pid: String
+    var ec: String
+    var hasEc: Bool
+    var maxOt: Int
+}
+
+struct OriginLists: Codable, Sendable {
+    var games: [ListItem]
+    var locations: [ListItem]
 }

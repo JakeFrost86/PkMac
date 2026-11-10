@@ -22,7 +22,7 @@ struct PokedexView: View {
             if loading {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if data?.supported != true {
-                ContentUnavailableView("Pokédex non modificabile", systemImage: "book.closed", description: Text("Questo salvataggio non espone un Pokédex."))
+                ContentUnavailableView(L("Pokédex non modificabile"), systemImage: "book.closed", description: Text(L("Questo salvataggio non espone un Pokédex.")))
             } else {
                 progressBar
                 controls
@@ -38,8 +38,8 @@ struct PokedexView: View {
     }
 
     private var subtitle: String {
-        guard let d = data, d.supported else { return "Visti e catturati" }
-        return "\(d.caught ?? 0) catturati · \(d.seen ?? 0) visti su \(d.total ?? 0)"
+        guard let d = data, d.supported else { return L("Visti e catturati") }
+        return L("\(d.caught ?? 0) catturati · \(d.seen ?? 0) visti su \(d.total ?? 0)")
     }
 
     private var progressBar: some View {
@@ -61,22 +61,22 @@ struct PokedexView: View {
         HStack(spacing: 10) {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("Nome o numero", text: $filter).textFieldStyle(.plain)
+                TextField(L("Nome o numero"), text: $filter).textFieldStyle(.plain)
             }
             .padding(.horizontal, 10).padding(.vertical, 7)
             .background(.primary.opacity(0.05), in: Capsule())
             .frame(maxWidth: 240)
             Picker("", selection: $show) {
-                Text("Tutti").tag(0); Text("Catturati").tag(1); Text("Solo visti").tag(2); Text("Mancanti").tag(3)
+                Text(L("Tutti")).tag(0); Text(L("Catturati")).tag(1); Text(L("Solo visti")).tag(2); Text(L("Mancanti")).tag(3)
             }
             .pickerStyle(.segmented).labelsHidden().frame(maxWidth: 360)
             Spacer()
             Menu {
-                Button { Task { await bulk("seenAll") } } label: { Label("Segna tutti come visti", systemImage: "eye.fill") }
-                Button { Task { await bulk("caughtAll") } } label: { Label("Segna tutti come catturati", systemImage: "checkmark.seal.fill") }
+                Button { Task { await bulk("seenAll") } } label: { Label(L("Segna tutti come visti"), systemImage: "eye.fill") }
+                Button { Task { await bulk("caughtAll") } } label: { Label(L("Segna tutti come catturati"), systemImage: "checkmark.seal.fill") }
                 Divider()
-                Button(role: .destructive) { Task { await bulk("clear") } } label: { Label("Azzera il Pokédex", systemImage: "trash") }
-            } label: { Label("Completa", systemImage: "wand.and.stars") }
+                Button(role: .destructive) { Task { await bulk("clear") } } label: { Label(L("Azzera il Pokédex"), systemImage: "trash") }
+            } label: { Label(L("Completa"), systemImage: "wand.and.stars") }
             .menuIndicator(.hidden)
             .buttonStyle(.glass)
         }
@@ -103,7 +103,7 @@ struct PokedexView: View {
     private func bulk(_ a: String) async {
         if let d = await model.setDex(action: a) {
             withAnimation(Theme.spring) { data = d }
-            model.toast(.success, "Pokédex aggiornato", "Puoi annullare con ⌘Z.")
+            model.toast(.success, L("Pokédex aggiornato"), L("Puoi annullare con ⌘Z."))
         }
     }
 }
@@ -133,12 +133,12 @@ private struct DexTile: View {
                     Image(systemName: entry.seen ? "eye.fill" : "eye.slash")
                         .foregroundStyle(entry.seen ? AnyShapeStyle(t.color) : AnyShapeStyle(.tertiary))
                 }
-                .help(entry.seen ? "Visto" : "Non visto")
+                .help(entry.seen ? L("Visto") : L("Non visto"))
                 Button { onSet(true, !entry.caught) } label: {
                     Image(systemName: entry.caught ? "checkmark.seal.fill" : "seal")
                         .foregroundStyle(entry.caught ? AnyShapeStyle(t.color) : AnyShapeStyle(.tertiary))
                 }
-                .help(entry.caught ? "Catturato" : "Non catturato")
+                .help(entry.caught ? L("Catturato") : L("Non catturato"))
             }
             .buttonStyle(.plain)
             .font(.system(size: 13))
@@ -163,7 +163,7 @@ struct EventsView: View {
     @State private var changedSystem: [Int: Bool] = [:]
     @State private var changedWork: [Int: Int] = [:]
     @State private var tab = 0
-    @State private var category = "Tutte"
+    @State private var category = L("Tutte")
     @State private var filter = ""
     @State private var showUnnamed = false
     @State private var loading = true
@@ -173,14 +173,14 @@ struct EventsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Header(title: "Eventi di gioco", subtitle: subtitle, symbol: "flag.2.crossed.fill", tint: AppSection.events.tint)
+            Header(title: L("Eventi di gioco"), subtitle: subtitle, symbol: "flag.2.crossed.fill", tint: AppSection.events.tint)
             if loading {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let d = data, !d.supported {
                 VStack(spacing: 14) {
-                    ContentUnavailableView("Eventi nei blocchi", systemImage: "square.stack.3d.up", description: Text(d.message ?? ""))
+                    ContentUnavailableView(L("Eventi nei blocchi"), systemImage: "square.stack.3d.up", description: Text(d.message ?? ""))
                     if d.useBlocks == true {
-                        Button { model.section = .advanced } label: { Label("Apri i blocchi di gioco", systemImage: "arrow.right") }
+                        Button { model.section = .advanced } label: { Label(L("Apri i blocchi di gioco"), systemImage: "arrow.right") }
                             .buttonStyle(.glassProminent)
                     }
                 }
@@ -195,8 +195,8 @@ struct EventsView: View {
     }
 
     private var subtitle: String {
-        guard let d = data, d.supported else { return "Trama, strumenti nascosti, allenatori, leggendari…" }
-        return "\(d.flagCount ?? 0) flag · \(d.workCount ?? 0) valori" + ((d.systemCount ?? 0) > 0 ? " · \(d.systemCount!) flag di sistema" : "") + (dirty ? " · modifiche da applicare" : "")
+        guard let d = data, d.supported else { return L("Trama, strumenti nascosti, allenatori, leggendari…") }
+        return L("\(d.flagCount ?? 0) flag · \(d.workCount ?? 0) valori") + ((d.systemCount ?? 0) > 0 ? L(" · \(d.systemCount!) flag di sistema") : "") + (dirty ? L(" · modifiche da applicare") : "")
     }
 
     private func load() async {
@@ -214,47 +214,47 @@ struct EventsView: View {
         case 2: src = (data?.namedSystem ?? []).map(\.category)
         default: src = (data?.namedFlags ?? []).map(\.category)
         }
-        return ["Tutte"] + Array(Set(src)).sorted()
+        return [L("Tutte")] + Array(Set(src)).sorted()
     }
 
     private var controls: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
                 Picker("", selection: $tab) {
-                    Text("Flag").tag(0)
-                    Text("Valori").tag(1)
-                    if (data?.systemCount ?? 0) > 0 { Text("Sistema").tag(2) }
+                    Text(L("Flag")).tag(0)
+                    Text(L("Valori")).tag(1)
+                    if (data?.systemCount ?? 0) > 0 { Text(L("Sistema")).tag(2) }
                 }
                 .pickerStyle(.segmented).labelsHidden().frame(width: 260)
-                Picker("Categoria", selection: $category) {
+                Picker(L("Categoria"), selection: $category) {
                     ForEach(categories, id: \.self) { Text($0).tag($0) }
                 }
                 .frame(width: 220)
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    TextField("Cerca un evento", text: $filter).textFieldStyle(.plain)
+                    TextField(L("Cerca un evento"), text: $filter).textFieldStyle(.plain)
                 }
                 .padding(.horizontal, 10).padding(.vertical, 7)
                 .background(.primary.opacity(0.05), in: Capsule())
                 .frame(maxWidth: 240)
                 Spacer()
                 if dirty {
-                    Button("Annulla") { Task { await load() } }.buttonStyle(.glass)
-                    Button { Task { await apply() } } label: { Label("Applica \(changedFlags.count + changedSystem.count + changedWork.count)", systemImage: "checkmark") }
+                    Button(L("Annulla")) { Task { await load() } }.buttonStyle(.glass)
+                    Button { Task { await apply() } } label: { Label(L("Applica \(changedFlags.count + changedSystem.count + changedWork.count)"), systemImage: "checkmark") }
                         .buttonStyle(.glassProminent)
                         .keyboardShortcut(.return, modifiers: .command)
                 }
             }
             HStack(spacing: 10) {
-                Toggle("Mostra anche gli indici senza nome", isOn: $showUnnamed).toggleStyle(.switch).controlSize(.small)
+                Toggle(L("Mostra anche gli indici senza nome"), isOn: $showUnnamed).toggleStyle(.switch).controlSize(.small)
                 Spacer()
-                Text("Vai all'indice").font(.caption).foregroundStyle(.secondary)
+                Text(L("Vai all'indice")).font(.caption).foregroundStyle(.secondary)
                 TextField("0", text: $jump).textFieldStyle(.roundedBorder).frame(width: 70)
                     .onSubmit { filter = jump; showUnnamed = true }
             }
             .font(.system(size: 12))
         }
-        .onChange(of: tab) { _, _ in category = "Tutte" }
+        .onChange(of: tab) { _, _ in category = L("Tutte") }
     }
 
     private struct Row: Identifiable { let id: Int; let name: String; let category: String; let options: [NamedWork.Option] }
@@ -276,11 +276,11 @@ struct EventsView: View {
         var all = named
         if showUnnamed {
             let known = Set(named.map(\.id))
-            all += (0..<count).filter { !known.contains($0) }.map { Row(id: $0, name: "Indice \($0)", category: "Senza nome", options: []) }
+            all += (0..<count).filter { !known.contains($0) }.map { Row(id: $0, name: L("Indice \($0)"), category: L("Senza nome"), options: []) }
             all.sort { $0.id < $1.id }
         }
         return all.filter { r in
-            (category == "Tutte" || r.category == category) &&
+            (category == L("Tutte") || r.category == category) &&
             (filter.isEmpty || r.name.localizedCaseInsensitiveContains(filter) || "\(r.id)" == filter)
         }
     }
@@ -289,8 +289,8 @@ struct EventsView: View {
         let rs = rows
         return Group {
             if rs.isEmpty {
-                ContentUnavailableView("Nessun evento", systemImage: "flag.slash",
-                                       description: Text(showUnnamed ? "Nessun risultato." : "Per questo gioco PKHeX non ha nomi: attiva “Mostra anche gli indici senza nome”."))
+                ContentUnavailableView(L("Nessun evento"), systemImage: "flag.slash",
+                                       description: Text(showUnnamed ? L("Nessun risultato.") : L("Per questo gioco PKHeX non ha nomi: attiva “Mostra anche gli indici senza nome”.")))
             } else {
                 List(rs) { r in
                     HStack(spacing: 10) {
@@ -343,7 +343,7 @@ struct EventsView: View {
             data = d
             flags = d.flags ?? []; system = d.system ?? []; work = d.work ?? []
             changedFlags = [:]; changedSystem = [:]; changedWork = [:]
-            model.toast(.success, "Eventi aggiornati", "Puoi annullare con ⌘Z.")
+            model.toast(.success, L("Eventi aggiornati"), L("Puoi annullare con ⌘Z."))
         }
     }
 }
@@ -368,7 +368,7 @@ struct GiftsView: View {
     var body: some View {
         HStack(alignment: .top, spacing: 18) {
             VStack(alignment: .leading, spacing: 16) {
-                Header(title: "Doni segreti", subtitle: "Album delle carte dono e database eventi filtrato per \(model.save?.game ?? "il gioco")", symbol: "gift.fill", tint: AppSection.gifts.tint)
+                Header(title: L("Doni segreti"), subtitle: L("Album delle carte dono e database eventi filtrato per \(model.save?.game ?? "il gioco")"), symbol: "gift.fill", tint: AppSection.gifts.tint)
                 albumSection
                 databaseSection
             }
@@ -387,7 +387,7 @@ struct GiftsView: View {
 
     @ViewBuilder private var albumSection: some View {
         if let a = album, a.supported, let cards = a.cards {
-            Card(title: "Album nel salvataggio · \(cards.filter { !$0.card.empty }.count)/\(cards.count)", symbol: "rectangle.stack.fill", tint: AppSection.gifts.tint) {
+            Card(title: L("Album nel salvataggio · \(cards.filter { !$0.card.empty }.count)/\(cards.count)"), symbol: "rectangle.stack.fill", tint: AppSection.gifts.tint) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 10) {
                         ForEach(Array(cards.enumerated()), id: \.offset) { i, e in
@@ -397,11 +397,11 @@ struct GiftsView: View {
                             .contextMenu {
                                 if !e.card.empty {
                                     if a.canToggleUsed == true {
-                                        Button(e.card.used == true ? "Segna come non ritirato" : "Segna come già ritirato") {
+                                        Button(e.card.used == true ? L("Segna come non ritirato") : L("Segna come già ritirato")) {
                                             Task { if let r = await model.setGiftFlags(["slot": i, "used": !(e.card.used ?? false)]) { album = r } }
                                         }
                                     }
-                                    Button("Elimina carta", role: .destructive) {
+                                    Button(L("Elimina carta"), role: .destructive) {
                                         Task { if let r = await model.deleteGift(slot: i) { album = r; selected = nil } }
                                     }
                                 }
@@ -412,27 +412,27 @@ struct GiftsView: View {
                 }
                 HStack {
                     if a.hasFlags == true {
-                        Text("\(a.received?.count ?? 0) doni risultano già ricevuti nel gioco")
+                        Text(L("\(a.received?.count ?? 0) doni risultano già ricevuti nel gioco"))
                             .font(.caption).foregroundStyle(.secondary)
-                        Button("Azzera ricevuti") {
+                        Button(L("Azzera ricevuti")) {
                             Task { if let r = await model.setGiftFlags(["action": "clear"]) { album = r } }
                         }
                         .buttonStyle(.glass).controlSize(.small)
-                        .help("Permette di ricevere di nuovo i doni già riscattati")
+                        .help(L("Permette di ricevere di nuovo i doni già riscattati"))
                     }
                     Spacer()
                     Button { Task { if await model.importGiftFile() { album = await model.giftAlbum() } } } label: {
-                        Label("Importa file dono…", systemImage: "doc.badge.plus")
+                        Label(L("Importa file dono…"), systemImage: "doc.badge.plus")
                     }
                     .buttonStyle(.glass).controlSize(.small)
                 }
             }
         } else if let a = album {
-            Card(title: "Album", symbol: "info.circle.fill", tint: AppSection.gifts.tint) {
+            Card(title: L("Album"), symbol: "info.circle.fill", tint: AppSection.gifts.tint) {
                 HStack {
                     Text(a.message ?? "").font(.callout).foregroundStyle(.secondary)
                     Spacer()
-                    Button { Task { _ = await model.importGiftFile() } } label: { Label("Importa file dono…", systemImage: "doc.badge.plus") }
+                    Button { Task { _ = await model.importGiftFile() } } label: { Label(L("Importa file dono…"), systemImage: "doc.badge.plus") }
                         .buttonStyle(.glass).controlSize(.small)
                 }
             }
@@ -446,17 +446,17 @@ struct GiftsView: View {
             HStack(spacing: 10) {
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    TextField("Cerca evento, Pokémon, oggetto, OT, numero carta…", text: $query).textFieldStyle(.plain)
+                    TextField(L("Cerca evento, Pokémon, oggetto, OT, numero carta…"), text: $query).textFieldStyle(.plain)
                         .onSubmit { Task { await search() } }
                 }
                 .padding(.horizontal, 10).padding(.vertical, 7)
                 .background(.primary.opacity(0.05), in: Capsule())
-                Picker("", selection: $kind) { Text("Tutti").tag(0); Text("Pokémon").tag(1); Text("Oggetti e altro").tag(2) }
+                Picker("", selection: $kind) { Text(L("Tutti")).tag(0); Text("Pokémon").tag(1); Text(L("Oggetti e altro")).tag(2) }
                     .pickerStyle(.segmented).labelsHidden().frame(width: 280)
             }
             .onChange(of: query) { _, _ in Task { try? await Task.sleep(for: .milliseconds(300)); await search() } }
             if let db {
-                Text("\(db.total) doni compatibili con \(model.save?.game ?? "questo gioco")" + (db.total > db.shown ? " · mostrati i primi \(db.shown), affina la ricerca" : ""))
+                Text(L("\(db.total) doni compatibili con \(model.save?.game ?? "questo gioco")") + (db.total > db.shown ? L(" · mostrati i primi \(db.shown), affina la ricerca") : ""))
                     .font(.caption).foregroundStyle(.secondary)
                 let items = db.items.filter { kind == 0 || (kind == 1 ? $0.isEntity == true : $0.isEntity != true) }
                 ScrollView {
@@ -502,7 +502,7 @@ struct GiftsView: View {
                 HStack(spacing: 6) {
                     if let t = g.type { StatusBadge(kind: .info, text: t.uppercased()) }
                     if let c = g.cardId, c > 0 { StatusBadge(kind: .info, text: "#\(c)") }
-                    if g.shiny == true { StatusBadge(kind: .warn, text: "Shiny") }
+                    if g.shiny == true { StatusBadge(kind: .warn, text: L("Shiny")) }
                 }
                 ScrollView {
                     VStack(alignment: .leading, spacing: 3) {
@@ -515,21 +515,21 @@ struct GiftsView: View {
                 if let id = g.id {
                     if g.canReceive == true {
                         Button { Task { await model.receiveGift(id) } } label: {
-                            Label("Metti il Pokémon nel box", systemImage: "tray.and.arrow.down.fill").frame(maxWidth: .infinity)
+                            Label(L("Metti il Pokémon nel box"), systemImage: "tray.and.arrow.down.fill").frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.glassProminent).controlSize(.large)
                     }
                     if g.canAlbum == true {
                         Button { Task { if let r = await model.giftToAlbum(id) { album = r } } } label: {
-                            Label("Aggiungi la carta all'album", systemImage: "rectangle.stack.badge.plus").frame(maxWidth: .infinity)
+                            Label(L("Aggiungi la carta all'album"), systemImage: "rectangle.stack.badge.plus").frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.glass).controlSize(.large)
-                        Text("La carta finirà nell'album: nel gioco la ritiri dal fattorino/postino come un vero dono.")
+                        Text(L("La carta finirà nell'album: nel gioco la ritiri dal fattorino/postino come un vero dono."))
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }
             } else {
-                ContentUnavailableView("Scegli un dono", systemImage: "gift", description: Text("Seleziona una carta dell'album o un evento del database."))
+                ContentUnavailableView(L("Scegli un dono"), systemImage: "gift", description: Text(L("Seleziona una carta dell'album o un evento del database.")))
             }
         }
         .padding(16)
@@ -566,7 +566,7 @@ private struct AlbumSlot: View {
             }
             .frame(width: 70, height: 70)
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(selected ? AppSection.gifts.tint : .primary.opacity(0.08), lineWidth: selected ? 2 : 1))
-            Text(c.empty ? (isLock ? "Capsula" : "Vuoto") : c.displayTitle)
+            Text(c.empty ? (isLock ? L("Capsula") : L("Vuoto")) : c.displayTitle)
                 .font(.system(size: 10, weight: .medium, design: .rounded)).lineLimit(1).frame(width: 74)
                 .foregroundStyle(c.empty ? .tertiary : .primary)
         }
@@ -595,7 +595,7 @@ private struct GiftRow: View {
                 HStack(spacing: 4) {
                     Text(card.type ?? "").font(.system(size: 9.5, weight: .bold, design: .monospaced)).foregroundStyle(.secondary)
                     if card.isEntity == true {
-                        Text("· \(card.speciesName ?? "") Lv.\(card.level ?? 0)").font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(1)
+                        Text(L("· \(card.speciesName ?? "") Lv.\(card.level ?? 0)")).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(1)
                     } else if let i = card.item {
                         Text("· \(i)").font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(1)
                     }
