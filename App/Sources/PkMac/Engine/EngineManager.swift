@@ -14,7 +14,13 @@ enum AppPaths {
     }
     static var activeFile: URL { engines.appendingPathComponent("active.json") }
     static var backups: URL { support.appendingPathComponent("Backups", isDirectory: true) }
+    #if os(macOS)
     static var bundledEngine: URL? { Bundle.main.resourceURL?.appendingPathComponent("Engine", isDirectory: true) }
+    #else
+    /// iPhone / iPad: the engine is PkMacEngine.framework inside the app (Frameworks/).
+    /// The in-process engine finds the same Application Support/PkMac folder through HOME (the app sandbox).
+    static var bundledEngine: URL? { Bundle.main.privateFrameworksURL?.appendingPathComponent("PkMacEngine.framework", isDirectory: true) }
+    #endif
     static let engineBinary = "PkMacEngine"
 }
 
@@ -43,6 +49,9 @@ enum EngineManager {
     /// Folder of the engine to launch: the downloaded one if valid and not older than the bundled one.
     static func activeDirectory() -> URL? {
         let bundled = AppPaths.bundledEngine
+        #if os(iOS)
+        return bundled   // iOS: always the engine compiled into the app (no downloaded engines)
+        #else
         if let m = activeManifest(), let dir = m.dir {
             let url = URL(fileURLWithPath: dir, isDirectory: true)
             let bin = url.appendingPathComponent(AppPaths.engineBinary)
@@ -53,6 +62,7 @@ enum EngineManager {
             }
         }
         return bundled
+        #endif
     }
 
     static func executable() -> URL? {
@@ -86,12 +96,16 @@ enum EngineManager {
 
     /// Runs `PkMacEngine --selftest` in a folder and returns the report.
     static func selfTest(dir: URL, savePath: String?) async -> SelfTestReport? {
+        #if os(iOS)
+        return nil   // iOS can't launch other programs; the bundled engine is never swapped
+        #else
         let bin = dir.appendingPathComponent(AppPaths.engineBinary)
         var args = ["--selftest"]
         if let savePath { args.append(savePath) }
         guard let out = try? await Shell.run(bin, args, timeout: 180) else { return nil }
         let line = out.split(separator: "\n").last.map(String.init) ?? ""
         return try? JSONDecoder().decode(SelfTestReport.self, from: Data(line.utf8))
+        #endif
     }
 }
 
@@ -109,6 +123,7 @@ enum VersionCompare {
     static func newer(_ a: String, than b: String) -> Bool { compare(a, b) == .orderedDescending }
 }
 
+#if os(macOS)
 enum Shell {
     struct Failure: LocalizedError {
         let status: Int32
@@ -146,3 +161,4 @@ enum Shell {
         _ = try await run(URL(fileURLWithPath: "/usr/bin/ditto"), args)
     }
 }
+#endif

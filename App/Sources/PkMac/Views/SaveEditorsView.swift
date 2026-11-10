@@ -4,6 +4,7 @@ import SwiftUI
 
 struct PokedexView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.pkCompact) private var compact
     @State private var data: DexData?
     @State private var filter = ""
     @State private var show = 0 // 0 all, 1 caught, 2 seen only, 3 missing
@@ -29,7 +30,7 @@ struct PokedexView: View {
                 grid
             }
         }
-        .padding(26)
+        .pkPadding(26)
         .task(id: model.save?.path) {
             loading = true
             data = await model.dex()
@@ -58,19 +59,33 @@ struct PokedexView: View {
     }
 
     private var controls: some View {
-        HStack(spacing: 10) {
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField(L("Nome o numero"), text: $filter).textFieldStyle(.plain)
+        // Narrow screens: the filter becomes a row of its own under the search field.
+        PKCompactWrap(spacing: 10) {
+            HStack(spacing: 10) {
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                    TextField(L("Nome o numero"), text: $filter).textFieldStyle(.plain)
+                }
+                .padding(.horizontal, 10).padding(.vertical, 7)
+                .background(.primary.opacity(0.05), in: Capsule())
+                .frame(maxWidth: 240)
+                if !compact { showPicker.frame(maxWidth: 360) }
+                Spacer()
+                completeMenu
             }
-            .padding(.horizontal, 10).padding(.vertical, 7)
-            .background(.primary.opacity(0.05), in: Capsule())
-            .frame(maxWidth: 240)
-            Picker("", selection: $show) {
-                Text(L("Tutti")).tag(0); Text(L("Catturati")).tag(1); Text(L("Solo visti")).tag(2); Text(L("Mancanti")).tag(3)
-            }
-            .pickerStyle(.segmented).labelsHidden().frame(maxWidth: 360)
-            Spacer()
+        } extra: {
+            showPicker
+        }
+    }
+
+    private var showPicker: some View {
+        Picker("", selection: $show) {
+            Text(L("Tutti")).tag(0); Text(L("Catturati")).tag(1); Text(L("Solo visti")).tag(2); Text(L("Mancanti")).tag(3)
+        }
+        .pickerStyle(.segmented).labelsHidden()
+    }
+
+    private var completeMenu: some View {
             Menu {
                 Button { Task { await bulk("seenAll") } } label: { Label(L("Segna tutti come visti"), systemImage: "eye.fill") }
                 Button { Task { await bulk("caughtAll") } } label: { Label(L("Segna tutti come catturati"), systemImage: "checkmark.seal.fill") }
@@ -78,8 +93,7 @@ struct PokedexView: View {
                 Button(role: .destructive) { Task { await bulk("clear") } } label: { Label(L("Azzera il Pokédex"), systemImage: "trash") }
             } label: { Label(L("Completa"), systemImage: "wand.and.stars") }
             .menuIndicator(.hidden)
-            .buttonStyle(.glass)
-        }
+            .buttonStyle(.pkGlass)
     }
 
     private var grid: some View {
@@ -103,7 +117,7 @@ struct PokedexView: View {
     private func bulk(_ a: String) async {
         if let d = await model.setDex(action: a) {
             withAnimation(Theme.spring) { data = d }
-            model.toast(.success, L("Pokédex aggiornato"), L("Puoi annullare con ⌘Z."))
+            model.toast(.success, L("Pokédex aggiornato"), Platform.isMac ? L("Puoi annullare con ⌘Z.") : L("Puoi annullare con il tasto Annulla."))
         }
     }
 }
@@ -155,6 +169,7 @@ private struct DexTile: View {
 
 struct EventsView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.pkCompact) private var compact
     @State private var data: EventsData?
     @State private var flags: [Bool] = []
     @State private var system: [Bool] = []
@@ -181,7 +196,7 @@ struct EventsView: View {
                     ContentUnavailableView(L("Eventi nei blocchi"), systemImage: "square.stack.3d.up", description: Text(d.message ?? ""))
                     if d.useBlocks == true {
                         Button { model.section = .advanced } label: { Label(L("Apri i blocchi di gioco"), systemImage: "arrow.right") }
-                            .buttonStyle(.glassProminent)
+                            .buttonStyle(.pkGlassProminent)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -190,7 +205,7 @@ struct EventsView: View {
                 list
             }
         }
-        .padding(26)
+        .pkPadding(26)
         .task(id: model.save?.path) { await load() }
     }
 
@@ -219,42 +234,78 @@ struct EventsView: View {
 
     private var controls: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                Picker("", selection: $tab) {
-                    Text(L("Flag")).tag(0)
-                    Text(L("Valori")).tag(1)
-                    if (data?.systemCount ?? 0) > 0 { Text(L("Sistema")).tag(2) }
+            if compact {
+                // Narrow screens: one control per line.
+                tabPicker
+                HStack(spacing: 10) {
+                    categoryPicker
+                    Spacer()
+                    applyButtons
                 }
-                .pickerStyle(.segmented).labelsHidden().frame(width: 260)
-                Picker(L("Categoria"), selection: $category) {
-                    ForEach(categories, id: \.self) { Text($0).tag($0) }
-                }
-                .frame(width: 220)
-                HStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    TextField(L("Cerca un evento"), text: $filter).textFieldStyle(.plain)
-                }
-                .padding(.horizontal, 10).padding(.vertical, 7)
-                .background(.primary.opacity(0.05), in: Capsule())
-                .frame(maxWidth: 240)
-                Spacer()
-                if dirty {
-                    Button(L("Annulla")) { Task { await load() } }.buttonStyle(.glass)
-                    Button { Task { await apply() } } label: { Label(L("Applica \(changedFlags.count + changedSystem.count + changedWork.count)"), systemImage: "checkmark") }
-                        .buttonStyle(.glassProminent)
-                        .keyboardShortcut(.return, modifiers: .command)
-                }
-            }
-            HStack(spacing: 10) {
+                searchField
                 Toggle(L("Mostra anche gli indici senza nome"), isOn: $showUnnamed).toggleStyle(.switch).controlSize(.small)
-                Spacer()
-                Text(L("Vai all'indice")).font(.caption).foregroundStyle(.secondary)
-                TextField("0", text: $jump).textFieldStyle(.roundedBorder).frame(width: 70)
-                    .onSubmit { filter = jump; showUnnamed = true }
+                    .font(.system(size: 12))
+                HStack(spacing: 10) {
+                    Spacer()
+                    jumpControls
+                }
+                .font(.system(size: 12))
+            } else {
+                HStack(spacing: 10) {
+                    tabPicker.frame(width: 260)
+                    categoryPicker.frame(width: 220)
+                    searchField.frame(maxWidth: 240)
+                    Spacer()
+                    applyButtons
+                }
+                HStack(spacing: 10) {
+                    Toggle(L("Mostra anche gli indici senza nome"), isOn: $showUnnamed).toggleStyle(.switch).controlSize(.small)
+                    Spacer()
+                    jumpControls
+                }
+                .font(.system(size: 12))
             }
-            .font(.system(size: 12))
         }
         .onChange(of: tab) { _, _ in category = L("Tutte") }
+    }
+
+    private var tabPicker: some View {
+        Picker("", selection: $tab) {
+            Text(L("Flag")).tag(0)
+            Text(L("Valori")).tag(1)
+            if (data?.systemCount ?? 0) > 0 { Text(L("Sistema")).tag(2) }
+        }
+        .pickerStyle(.segmented).labelsHidden()
+    }
+
+    private var categoryPicker: some View {
+        Picker(L("Categoria"), selection: $category) {
+            ForEach(categories, id: \.self) { Text($0).tag($0) }
+        }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            TextField(L("Cerca un evento"), text: $filter).textFieldStyle(.plain)
+        }
+        .padding(.horizontal, 10).padding(.vertical, 7)
+        .background(.primary.opacity(0.05), in: Capsule())
+    }
+
+    @ViewBuilder private var applyButtons: some View {
+        if dirty {
+            Button(L("Annulla")) { Task { await load() } }.buttonStyle(.pkGlass)
+            Button { Task { await apply() } } label: { Label(L("Applica \(changedFlags.count + changedSystem.count + changedWork.count)"), systemImage: "checkmark") }
+                .buttonStyle(.pkGlassProminent)
+                .keyboardShortcut(.return, modifiers: .command)
+        }
+    }
+
+    @ViewBuilder private var jumpControls: some View {
+        Text(L("Vai all'indice")).font(.caption).foregroundStyle(.secondary)
+        TextField("0", text: $jump).textFieldStyle(.roundedBorder).frame(width: 70)
+            .onSubmit { filter = jump; showUnnamed = true }
     }
 
     private struct Row: Identifiable { let id: Int; let name: String; let category: String; let options: [NamedWork.Option] }
@@ -293,20 +344,39 @@ struct EventsView: View {
                                        description: Text(showUnnamed ? L("Nessun risultato.") : L("Per questo gioco PKHeX non ha nomi: attiva “Mostra anche gli indici senza nome”.")))
             } else {
                 List(rs) { r in
-                    HStack(spacing: 10) {
-                        Text("\(r.id)").font(.system(size: 11, design: .monospaced)).foregroundStyle(.tertiary).frame(width: 46, alignment: .trailing)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(r.name).font(.system(size: 12.5, weight: .medium))
-                            Text(r.category).font(.system(size: 10.5)).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        control(r)
-                    }
-                    .padding(.vertical, 2)
+                    eventRow(r)
+                        .padding(.vertical, 2)
                 }
                 .listStyle(.inset)
                 .clipShape(.rect(cornerRadius: 16))
             }
+        }
+    }
+
+    @ViewBuilder private func eventRow(_ r: Row) -> some View {
+        if compact && tab == 1 {
+            // Values have a picker and a number field: below the name on narrow screens.
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 10) { rowTitle(r) }
+                HStack(spacing: 8) {
+                    Spacer(minLength: 0)
+                    control(r)
+                }
+            }
+        } else {
+            HStack(spacing: 10) {
+                rowTitle(r)
+                Spacer()
+                control(r)
+            }
+        }
+    }
+
+    @ViewBuilder private func rowTitle(_ r: Row) -> some View {
+        Text("\(r.id)").font(.system(size: 11, design: .monospaced)).foregroundStyle(.tertiary).frame(width: compact ? 36 : 46, alignment: .trailing)
+        VStack(alignment: .leading, spacing: 1) {
+            Text(r.name).font(.system(size: 12.5, weight: .medium))
+            Text(r.category).font(.system(size: 10.5)).foregroundStyle(.secondary)
         }
     }
 
@@ -320,9 +390,9 @@ struct EventsView: View {
                         ForEach(r.options, id: \.v) { Text("\($0.t) (\($0.v))").tag($0.v) }
                         if !r.options.contains(where: { $0.v == work[r.id] }) { Text("\(work[r.id])").tag(work[r.id]) }
                     }
-                    .labelsHidden().frame(width: 220)
+                    .labelsHidden().pkFixedWidth(220, compact: compact, 170)
                 }
-                TextField("", value: binding, format: .number).textFieldStyle(.roundedBorder).frame(width: 90).monospacedDigit()
+                TextField("", value: binding, format: .number).textFieldStyle(.roundedBorder).pkFixedWidth(90, compact: compact, 70).monospacedDigit()
                     .changed(changedWork[r.id] != nil)
             }
         case 2:
@@ -343,12 +413,17 @@ struct EventsView: View {
             data = d
             flags = d.flags ?? []; system = d.system ?? []; work = d.work ?? []
             changedFlags = [:]; changedSystem = [:]; changedWork = [:]
-            model.toast(.success, L("Eventi aggiornati"), L("Puoi annullare con ⌘Z."))
+            model.toast(.success, L("Eventi aggiornati"), Platform.isMac ? L("Puoi annullare con ⌘Z.") : L("Puoi annullare con il tasto Annulla."))
         }
     }
 }
 
 private extension View {
+    /// Fixed width, narrower on small screens.
+    @ViewBuilder func pkFixedWidth(_ regular: CGFloat, compact: Bool, _ narrow: CGFloat) -> some View {
+        if compact { frame(width: narrow) } else { frame(width: regular) }
+    }
+
     func changed(_ on: Bool) -> some View {
         self.padding(2).background(on ? Color.orange.opacity(0.22) : .clear, in: .rect(cornerRadius: 8))
     }
@@ -365,23 +440,45 @@ struct GiftsView: View {
     @State private var lines: [String] = []
     @State private var kind = 0 // 0 all, 1 Pokémon, 2 items/others
     @State private var region = "" // "" all, "any" valid everywhere, or a LanguageID
+    @State private var showDetail = false
+    @Environment(\.pkCompact) private var compact
 
     var body: some View {
-        HStack(alignment: .top, spacing: 18) {
-            VStack(alignment: .leading, spacing: 16) {
-                Header(title: L("Doni segreti"), subtitle: L("Album delle carte dono e database eventi filtrato per \(model.save?.game ?? "il gioco")"), symbol: "gift.fill", tint: AppSection.gifts.tint)
-                albumSection
-                databaseSection
+        Group {
+            if compact {
+                // Narrow screens: no side panel, the chosen gift opens in a sheet.
+                VStack(alignment: .leading, spacing: 16) {
+                    giftsHeader
+                    albumSection
+                    databaseSection
+                }
+                .sheet(isPresented: $showDetail) {
+                    detailPanel
+                        .padding(12)
+                        .presentationDetents([.medium, .large])
+                }
+            } else {
+                HStack(alignment: .top, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        giftsHeader
+                        albumSection
+                        databaseSection
+                    }
+                    .frame(maxWidth: .infinity)
+                    detailPanel
+                        .frame(width: 300)
+                }
             }
-            .frame(maxWidth: .infinity)
-            detailPanel
-                .frame(width: 300)
         }
-        .padding(26)
+        .pkPadding(26)
         .task(id: model.save?.path) {
             album = await model.giftAlbum()
             await search()
         }
+    }
+
+    private var giftsHeader: some View {
+        Header(title: L("Doni segreti"), subtitle: L("Album delle carte dono e database eventi filtrato per \(model.save?.game ?? "il gioco")"), symbol: "gift.fill", tint: AppSection.gifts.tint)
     }
 
     // Album
@@ -394,6 +491,7 @@ struct GiftsView: View {
                         ForEach(Array(cards.enumerated()), id: \.offset) { i, e in
                             AlbumSlot(entry: e, isLock: a.lockCapsuleSlot == i, selected: selected?.slot == i && selected?.id == nil) {
                                 selected = e.card; lines = e.lines
+                                if compact && !e.card.empty { showDetail = true }
                             }
                             .contextMenu {
                                 if !e.card.empty {
@@ -411,21 +509,23 @@ struct GiftsView: View {
                     }
                     .padding(.vertical, 2)
                 }
-                HStack {
-                    if a.hasFlags == true {
-                        Text(L("\(a.received?.count ?? 0) doni risultano già ricevuti nel gioco"))
-                            .font(.caption).foregroundStyle(.secondary)
-                        Button(L("Azzera ricevuti")) {
-                            Task { if let r = await model.setGiftFlags(["action": "clear"]) { album = r } }
+                if compact {
+                    VStack(alignment: .leading, spacing: 8) {
+                        if a.hasFlags == true {
+                            HStack {
+                                receivedInfo(a)
+                            }
                         }
-                        .buttonStyle(.glass).controlSize(.small)
-                        .help(L("Permette di ricevere di nuovo i doni già riscattati"))
+                        importGiftButton
                     }
-                    Spacer()
-                    Button { Task { if await model.importGiftFile() { album = await model.giftAlbum() } } } label: {
-                        Label(L("Importa file dono…"), systemImage: "doc.badge.plus")
+                } else {
+                    HStack {
+                        if a.hasFlags == true {
+                            receivedInfo(a)
+                        }
+                        Spacer()
+                        importGiftButton
                     }
-                    .buttonStyle(.glass).controlSize(.small)
                 }
             }
         } else if let a = album {
@@ -434,34 +534,47 @@ struct GiftsView: View {
                     Text(a.message ?? "").font(.callout).foregroundStyle(.secondary)
                     Spacer()
                     Button { Task { _ = await model.importGiftFile() } } label: { Label(L("Importa file dono…"), systemImage: "doc.badge.plus") }
-                        .buttonStyle(.glass).controlSize(.small)
+                        .buttonStyle(.pkGlass).controlSize(.small)
                 }
             }
         }
+    }
+
+    @ViewBuilder private func receivedInfo(_ a: GiftAlbum) -> some View {
+        Text(L("\(a.received?.count ?? 0) doni risultano già ricevuti nel gioco"))
+            .font(.caption).foregroundStyle(.secondary)
+        Button(L("Azzera ricevuti")) {
+            Task { if let r = await model.setGiftFlags(["action": "clear"]) { album = r } }
+        }
+        .buttonStyle(.pkGlass).controlSize(.small)
+        .help(L("Permette di ricevere di nuovo i doni già riscattati"))
+    }
+
+    private var importGiftButton: some View {
+        Button { Task { if await model.importGiftFile() { album = await model.giftAlbum() } } } label: {
+            Label(L("Importa file dono…"), systemImage: "doc.badge.plus")
+        }
+        .buttonStyle(.pkGlass).controlSize(.small)
     }
 
     // Database
 
     private var databaseSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                HStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    TextField(L("Cerca evento, Pokémon, oggetto, OT, numero carta…"), text: $query).textFieldStyle(.plain)
-                        .onSubmit { Task { await search() } }
+            Group {
+                if compact {
+                    VStack(alignment: .leading, spacing: 8) {
+                        giftSearchField
+                        kindPicker
+                        regionPicker
+                    }
+                } else {
+                    HStack(spacing: 10) {
+                        giftSearchField
+                        kindPicker.frame(width: 280)
+                        regionPicker.frame(width: 210)
+                    }
                 }
-                .padding(.horizontal, 10).padding(.vertical, 7)
-                .background(.primary.opacity(0.05), in: Capsule())
-                Picker("", selection: $kind) { Text(L("Tutti")).tag(0); Text("Pokémon").tag(1); Text(L("Oggetti e altro")).tag(2) }
-                    .pickerStyle(.segmented).labelsHidden().frame(width: 280)
-                Picker(selection: $region) {
-                    Text(L("Tutte le regioni")).tag("")
-                    Text(L("Valide in tutto il mondo")).tag("any")
-                    Divider()
-                    ForEach(GiftRegion.all, id: \.id) { r in Text(r.title).tag(String(r.id)) }
-                } label: { Image(systemName: "globe") }
-                .frame(width: 210)
-                .help(L("Le carte non registrano il paese di distribuzione, solo le lingue in cui si possono ricevere: il filtro usa quelle."))
             }
             .onChange(of: query) { _, _ in Task { try? await Task.sleep(for: .milliseconds(300)); await search() } }
             .onChange(of: region) { _, _ in Task { await search() } }
@@ -475,6 +588,7 @@ struct GiftsView: View {
                             GiftRow(card: g, selected: selected?.id == g.id && g.id != nil)
                                 .onTapGesture {
                                     selected = g
+                                    if compact { showDetail = true }
                                     Task { lines = await model.giftDetail(g.id ?? -1)?.lines ?? [] }
                                 }
                         }
@@ -486,6 +600,31 @@ struct GiftsView: View {
                 ProgressView().frame(maxWidth: .infinity)
             }
         }
+    }
+
+    private var giftSearchField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            TextField(L("Cerca evento, Pokémon, oggetto, OT, numero carta…"), text: $query).textFieldStyle(.plain)
+                .onSubmit { Task { await search() } }
+        }
+        .padding(.horizontal, 10).padding(.vertical, 7)
+        .background(.primary.opacity(0.05), in: Capsule())
+    }
+
+    private var kindPicker: some View {
+        Picker("", selection: $kind) { Text(L("Tutti")).tag(0); Text("Pokémon").tag(1); Text(L("Oggetti e altro")).tag(2) }
+            .pickerStyle(.segmented).labelsHidden()
+    }
+
+    private var regionPicker: some View {
+        Picker(selection: $region) {
+            Text(L("Tutte le regioni")).tag("")
+            Text(L("Valide in tutto il mondo")).tag("any")
+            Divider()
+            ForEach(GiftRegion.all, id: \.id) { r in Text(r.title).tag(String(r.id)) }
+        } label: { Image(systemName: "globe") }
+        .help(L("Le carte non registrano il paese di distribuzione, solo le lingue in cui si possono ricevere: il filtro usa quelle."))
     }
 
     private func search() async {
@@ -529,13 +668,13 @@ struct GiftsView: View {
                         Button { Task { await model.receiveGift(id) } } label: {
                             Label(L("Metti il Pokémon nel box"), systemImage: "tray.and.arrow.down.fill").frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.glassProminent).controlSize(.large)
+                        .buttonStyle(.pkGlassProminent).controlSize(.large)
                     }
                     if g.canAlbum == true {
                         Button { Task { if let r = await model.giftToAlbum(id) { album = r } } } label: {
                             Label(L("Aggiungi la carta all'album"), systemImage: "rectangle.stack.badge.plus").frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.glass).controlSize(.large)
+                        .buttonStyle(.pkGlass).controlSize(.large)
                         Text(L("La carta finirà nell'album: nel gioco la ritiri dal fattorino/postino come un vero dono."))
                             .font(.caption).foregroundStyle(.secondary)
                     }
@@ -546,7 +685,7 @@ struct GiftsView: View {
         }
         .padding(16)
         .frame(maxHeight: .infinity, alignment: .top)
-        .glassEffect(.regular, in: .rect(cornerRadius: 24))
+        .pkGlassEffect(.regular, in: .rect(cornerRadius: 24))
     }
 }
 

@@ -58,8 +58,8 @@ struct SearchPicker: View {
                 .onAppear { if let selected { proxy.scrollTo(selected, anchor: .center) } }
             }
         }
-        .frame(width: 300, height: 380)
-        .onAppear { focused = true }
+        .pkPopoverFrame(width: 300, height: 380)
+        .onAppear { focused = Platform.isMac }   // iPhone: browse first, the keyboard opens on tap
     }
 }
 
@@ -127,7 +127,7 @@ struct StatRadar: View {
                 polygon(c: c, r: r, ratios: order.map { CGFloat(base[$0]) / CGFloat(maxB) * progress })
                     .fill(tint.opacity(0.16))
                 polygon(c: c, r: r, ratios: order.map { min(1, CGFloat(Double(values[$0]) / maxV)) * progress })
-                    .fill(LinearGradient(colors: [tint.mix(with: .white, by: 0.3).opacity(0.65), tint.opacity(0.45)], startPoint: .top, endPoint: .bottom))
+                    .fill(LinearGradient(colors: [tint.pkMix(with: .white, by: 0.3).opacity(0.65), tint.opacity(0.45)], startPoint: .top, endPoint: .bottom))
                 polygon(c: c, r: r, ratios: order.map { min(1, CGFloat(Double(values[$0]) / maxV)) * progress })
                     .stroke(tint, style: StrokeStyle(lineWidth: 2, lineJoin: .round))
                 ForEach(0..<6, id: \.self) { i in

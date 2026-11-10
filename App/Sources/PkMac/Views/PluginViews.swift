@@ -41,7 +41,7 @@ struct AutoLegalityView: View {
                             Button {
                                 Task { dexResult = await model.livingDex(shiny: shinyDex, forms: formsDex) }
                             } label: { Label(L("Genera"), systemImage: "sparkles") }
-                            .buttonStyle(.glassProminent)
+                            .buttonStyle(.pkGlassProminent)
                         }
                         if let r = dexResult {
                             StatusBadge(kind: r.skipped == 0 ? .ok : .warn, text: L("\(r.placed) Pokémon inseriti") + (r.skipped > 0 ? L(" · \(r.skipped) senza spazio") : ""))
@@ -62,7 +62,7 @@ struct AutoLegalityView: View {
                         Button {
                             Task { await model.downloadEvents(); events = await model.eventsStatus() }
                         } label: { Label(events?.installed == true ? L("Aggiorna") : L("Scarica"), systemImage: "arrow.down.circle") }
-                        .buttonStyle(.glass)
+                        .buttonStyle(.pkGlass)
                     }
                 }
 
@@ -76,7 +76,7 @@ struct AutoLegalityView: View {
                     .onChange(of: [trainer, balls, ribbons, markings]) { _, _ in Task { await model.applyALMSettings() } }
                 }
             }
-            .padding(26)
+            .pkPadding(26)
         }
         .task { events = await model.eventsStatus() }
     }
@@ -95,7 +95,7 @@ struct ActionTile: View {
             VStack(alignment: .leading, spacing: 10) {
                 Image(systemName: symbol)
                     .font(.system(size: 22, weight: .bold))
-                    .foregroundStyle(LinearGradient(colors: [tint.mix(with: .white, by: 0.25), tint], startPoint: .top, endPoint: .bottom))
+                    .foregroundStyle(LinearGradient(colors: [tint.pkMix(with: .white, by: 0.25), tint], startPoint: .top, endPoint: .bottom))
                     .symbolEffect(.bounce, value: hover)
                 Text(title).font(.system(size: 16, weight: .bold, design: .rounded))
                 Text(text).font(.system(size: 12.5)).foregroundStyle(.secondary).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
@@ -117,6 +117,7 @@ struct ActionTile: View {
 
 struct SortingView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.pkCompact) private var compact
     @State private var options: [SortOption] = []
     @State private var areas = false
     @State private var startBox = 1
@@ -135,22 +136,37 @@ struct SortingView: View {
                 Header(title: L("Ordina per Pokédex"), subtitle: L("Ordinamento regionale · foohyfooh/PKHeXPluginPile"), symbol: "arrow.up.arrow.down.circle.fill", tint: AppSection.sorting.tint)
 
                 Card(title: L("Intervallo"), symbol: "square.stack.3d.up.fill", tint: .green) {
-                    HStack(spacing: 18) {
-                        Stepper(L("Dal box \(startBox)"), value: $startBox, in: 1...(model.save?.boxCount ?? 1))
-                        Stepper(endBox == 0 ? L("fino all'ultimo") : L("al box \(endBox)"), value: $endBox, in: 0...(model.save?.boxCount ?? 1))
-                        Spacer()
-                        Toggle(L("Solo forme del Pokédex"), isOn: $checkForms)
-                        Toggle(L("Mostra aree"), isOn: $areas)
-                    }
-                    HStack(spacing: 8) {
-                        Text(L("Poi per:")).foregroundStyle(.secondary)
-                        ForEach(extraOptions, id: \.0) { o in
-                            Toggle(o.1, isOn: Binding(get: { extras.contains(o.0) }, set: { on in if on { extras.insert(o.0) } else { extras.remove(o.0) } }))
-                                .toggleStyle(.button)
-                                .controlSize(.small)
+                    if compact {
+                        // Narrow screens: one control per row, the extra keys wrap.
+                        VStack(alignment: .leading, spacing: 10) {
+                            Stepper(L("Dal box \(startBox)"), value: $startBox, in: 1...(model.save?.boxCount ?? 1))
+                            Stepper(endBox == 0 ? L("fino all'ultimo") : L("al box \(endBox)"), value: $endBox, in: 0...(model.save?.boxCount ?? 1))
+                            Toggle(L("Solo forme del Pokédex"), isOn: $checkForms)
+                            Toggle(L("Mostra aree"), isOn: $areas)
                         }
+                        Text(L("Poi per:")).foregroundStyle(.secondary).font(.system(size: 12))
+                        FlowLayout(spacing: 6, lineSpacing: 6) {
+                            ForEach(extraOptions, id: \.0) { o in
+                                extraToggle(o)
+                            }
+                        }
+                        .font(.system(size: 12))
+                    } else {
+                        HStack(spacing: 18) {
+                            Stepper(L("Dal box \(startBox)"), value: $startBox, in: 1...(model.save?.boxCount ?? 1))
+                            Stepper(endBox == 0 ? L("fino all'ultimo") : L("al box \(endBox)"), value: $endBox, in: 0...(model.save?.boxCount ?? 1))
+                            Spacer()
+                            Toggle(L("Solo forme del Pokédex"), isOn: $checkForms)
+                            Toggle(L("Mostra aree"), isOn: $areas)
+                        }
+                        HStack(spacing: 8) {
+                            Text(L("Poi per:")).foregroundStyle(.secondary)
+                            ForEach(extraOptions, id: \.0) { o in
+                                extraToggle(o)
+                            }
+                        }
+                        .font(.system(size: 12))
                     }
-                    .font(.system(size: 12))
                 }
 
                 let groups = Dictionary(grouping: options, by: \.group)
@@ -178,9 +194,17 @@ struct SortingView: View {
                     }
                 }
             }
-            .padding(26)
+            .pkPadding(26)
         }
         .task(id: areas) { options = await model.sortOptions(areas: areas) }
+    }
+
+    private func extraToggle(_ o: (String, String)) -> some View {
+        Toggle(o.1, isOn: Binding(get: { extras.contains(o.0) }, set: { on in if on { extras.insert(o.0) } else { extras.remove(o.0) } }))
+            .toggleStyle(.button)
+            .controlSize(.small)
+            .lineLimit(1)
+            .fixedSize()
     }
 }
 
@@ -227,7 +251,7 @@ struct SpecialFinderView: View {
                     ProgressView(L("Cerco…")).frame(maxWidth: .infinity, minHeight: 200)
                 }
             }
-            .padding(26)
+            .pkPadding(26)
         }
         .task(id: model.save?.dirty) { report = await model.findSpecial() }
     }
@@ -237,6 +261,7 @@ struct SpecialFinderView: View {
 
 struct LiveHexView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.pkCompact) private var compact
     @AppStorage("live.ip") private var ip = "192.168.1.2"
     @AppStorage("live.port") private var port = 6000
     @State private var status: LiveStatus?
@@ -255,25 +280,32 @@ struct LiveHexView: View {
                 } else {
                     Card(title: L("Connessione"), symbol: "network", tint: .red) {
                         VStack(alignment: .leading, spacing: 12) {
-                            HStack(spacing: 10) {
-                                TextField(L("Indirizzo IP della console"), text: $ip).textFieldStyle(.roundedBorder).frame(width: 200)
-                                TextField(L("Porta"), value: $port, format: .number.grouping(.never)).textFieldStyle(.roundedBorder).frame(width: 80)
-                                if status?.connected == true {
-                                    Button(L("Disconnetti")) { Task { await model.liveDisconnect(); status = nil } }
-                                        .buttonStyle(.glass)
-                                } else {
-                                    Button(L("Connetti")) {
-                                        Task { status = await model.liveConnect(ip: ip, port: port) }
-                                    }
-                                    .buttonStyle(.glassProminent)
+                            if compact {
+                                HStack(spacing: 10) {
+                                    TextField(L("Indirizzo IP della console"), text: $ip).textFieldStyle(.roundedBorder)
+                                    TextField(L("Porta"), value: $port, format: .number.grouping(.never)).textFieldStyle(.roundedBorder).frame(width: 80)
                                 }
-                                Spacer()
-                                if let s = status, s.connected {
-                                    StatusBadge(kind: .ok, text: "\(s.game) \(s.gameVersion)")
+                                HStack(spacing: 10) {
+                                    liveConnectButton
+                                    Spacer(minLength: 0)
+                                    if let s = status, s.connected {
+                                        StatusBadge(kind: .ok, text: "\(s.game) \(s.gameVersion)")
+                                    }
+                                }
+                            } else {
+                                HStack(spacing: 10) {
+                                    TextField(L("Indirizzo IP della console"), text: $ip).textFieldStyle(.roundedBorder).frame(width: 200)
+                                    TextField(L("Porta"), value: $port, format: .number.grouping(.never)).textFieldStyle(.roundedBorder).frame(width: 80)
+                                    liveConnectButton
+                                    Spacer()
+                                    if let s = status, s.connected {
+                                        StatusBadge(kind: .ok, text: "\(s.game) \(s.gameVersion)")
+                                    }
                                 }
                             }
                             Text(model.save?.liveHexSwitch == true
-                                 ? L("Serve sys-botbase 2.5 o successivo sulla Switch (porta 6000). Su Mac la connessione è via Wi-Fi.")
+                                 ? (Platform.isMac ? L("Serve sys-botbase 2.5 o successivo sulla Switch (porta 6000). Su Mac la connessione è via Wi-Fi.")
+                                                   : L("Serve sys-botbase 2.5 o successivo sulla Switch (porta 6000). La connessione è via Wi-Fi."))
                                  : L("Per il 3DS serve NTR attivo (porta 8000)."))
                                 .font(.caption).foregroundStyle(.secondary)
                         }
@@ -281,17 +313,19 @@ struct LiveHexView: View {
 
                     if status?.connected == true {
                         Card(title: L("Box \(model.currentBox + 1) · \(model.box?.name ?? "")"), symbol: "square.grid.3x3.fill", tint: .red) {
-                            HStack(spacing: 12) {
-                                Button { Task { await model.liveRead(box: model.currentBox) } } label: {
-                                    Label(L("Leggi dal gioco"), systemImage: "arrow.down.to.line.circle.fill")
+                            if compact {
+                                HStack(spacing: 10) {
+                                    liveReadButton
+                                    liveWriteButton
                                 }
-                                .buttonStyle(.glassProminent)
-                                Button { Task { await model.liveWrite(box: model.currentBox) } } label: {
-                                    Label(L("Scrivi nel gioco"), systemImage: "arrow.up.to.line.circle.fill")
-                                }
-                                .buttonStyle(.glass)
-                                Spacer()
                                 Toggle(L("Leggi automaticamente cambiando box"), isOn: $autoRead)
+                            } else {
+                                HStack(spacing: 12) {
+                                    liveReadButton
+                                    liveWriteButton
+                                    Spacer()
+                                    Toggle(L("Leggi automaticamente cambiando box"), isOn: $autoRead)
+                                }
                             }
                             Text(L("Le modifiche ai box appaiono subito nel gioco. Per altri dati salva in gioco e riavvia."))
                                 .font(.caption).foregroundStyle(.secondary)
@@ -302,8 +336,36 @@ struct LiveHexView: View {
                     }
                 }
             }
-            .padding(26)
+            .pkPadding(26)
         }
+    }
+
+    @ViewBuilder private var liveConnectButton: some View {
+        if status?.connected == true {
+            Button(L("Disconnetti")) { Task { await model.liveDisconnect(); status = nil } }
+                .buttonStyle(.pkGlass)
+                .lineLimit(1).fixedSize()
+        } else {
+            Button(L("Connetti")) {
+                Task { status = await model.liveConnect(ip: ip, port: port) }
+            }
+            .buttonStyle(.pkGlassProminent)
+            .lineLimit(1).fixedSize()
+        }
+    }
+
+    private var liveReadButton: some View {
+        Button { Task { await model.liveRead(box: model.currentBox) } } label: {
+            Label(L("Leggi dal gioco"), systemImage: "arrow.down.to.line.circle.fill").lineLimit(1)
+        }
+        .buttonStyle(.pkGlassProminent)
+    }
+
+    private var liveWriteButton: some View {
+        Button { Task { await model.liveWrite(box: model.currentBox) } } label: {
+            Label(L("Scrivi nel gioco"), systemImage: "arrow.up.to.line.circle.fill").lineLimit(1)
+        }
+        .buttonStyle(.pkGlass)
     }
 }
 
@@ -311,6 +373,7 @@ struct LiveHexView: View {
 
 struct HomeLiveView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.pkCompact) private var compact
     @AppStorage("home.ip") private var ip = "192.168.1.2"
     @AppStorage("home.port") private var port = 6000
     @State private var connected: HomeConnectResult?
@@ -328,22 +391,24 @@ struct HomeLiveView: View {
 
                 Card(title: L("Connessione a Pokémon HOME"), symbol: "network", tint: .blue) {
                     VStack(alignment: .leading, spacing: 10) {
-                        HStack(spacing: 10) {
-                            TextField(L("Indirizzo IP della Switch"), text: $ip).textFieldStyle(.roundedBorder).frame(width: 200)
-                            TextField(L("Porta"), value: $port, format: .number.grouping(.never)).textFieldStyle(.roundedBorder).frame(width: 80)
-                            if connected != nil {
-                                Button(L("Disconnetti")) { Task { await model.homeDisconnect(); connected = nil; data = nil } }.buttonStyle(.glass)
-                            } else {
-                                Button(L("Connetti")) {
-                                    Task {
-                                        connected = await model.homeConnect(ip: ip, port: port)
-                                        if connected != nil { data = await model.homeBox(0) }
-                                    }
-                                }
-                                .buttonStyle(.glassProminent)
+                        if compact {
+                            HStack(spacing: 10) {
+                                TextField(L("Indirizzo IP della Switch"), text: $ip).textFieldStyle(.roundedBorder)
+                                TextField(L("Porta"), value: $port, format: .number.grouping(.never)).textFieldStyle(.roundedBorder).frame(width: 80)
                             }
-                            Spacer()
-                            if let c = connected { StatusBadge(kind: .ok, text: L("HOME \(c.supportedVersion) · \(c.boxes) box")) }
+                            HStack(spacing: 10) {
+                                homeConnectButton
+                                Spacer(minLength: 0)
+                                if let c = connected { StatusBadge(kind: .ok, text: L("HOME \(c.supportedVersion) · \(c.boxes) box")) }
+                            }
+                        } else {
+                            HStack(spacing: 10) {
+                                TextField(L("Indirizzo IP della Switch"), text: $ip).textFieldStyle(.roundedBorder).frame(width: 200)
+                                TextField(L("Porta"), value: $port, format: .number.grouping(.never)).textFieldStyle(.roundedBorder).frame(width: 80)
+                                homeConnectButton
+                                Spacer()
+                                if let c = connected { StatusBadge(kind: .ok, text: L("HOME \(c.supportedVersion) · \(c.boxes) box")) }
+                            }
                         }
                         Text(L("Apri Pokémon HOME sulla Switch (con sys-botbase) e tocca lo schermo almeno una volta. Non serve l'abbonamento: puoi vedere anche i box oltre il primo. Solo lettura: HOME non viene mai modificato."))
                             .font(.caption).foregroundStyle(.secondary)
@@ -356,18 +421,10 @@ struct HomeLiveView: View {
                         Text(L("Box HOME \(homeBox + 1)")).font(.system(size: 18, weight: .bold, design: .rounded)).frame(minWidth: 140)
                         Button { Task { homeBox = min(299, homeBox + 1); data = await model.homeBox(homeBox) } } label: { Image(systemName: "chevron.right") }
                         Spacer()
-                        if let sel = selected, let p = sel.pokemon {
-                            Button {
-                                guard let slot = model.firstEmptySlot() else { model.toast(.warning, L("Box pieno"), L("Libera uno slot nel box \(model.currentBox + 1).")); return }
-                                Task { await model.homeImport(homeBox: homeBox, homeSlot: sel.ref.slot, to: .box(model.currentBox, slot)) }
-                            } label: {
-                                Label(L("Porta \(p.displayName) nel box \(model.currentBox + 1)"), systemImage: "arrow.down.circle.fill")
-                            }
-                            .buttonStyle(.glassProminent)
-                            .disabled(sel.transferable != true)
-                        }
+                        if !compact { homeImportButton }
                     }
-                    .buttonStyle(.glass)
+                    .buttonStyle(.pkGlass)
+                    if compact { homeImportButton }   // narrow screens: on its own line
 
                     if let d = data {
                         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 6), spacing: 10) {
@@ -392,31 +449,78 @@ struct HomeLiveView: View {
                     }
 
                     Card(title: L("Backup completo di HOME"), symbol: "externaldrive.fill.badge.timemachine", tint: .indigo) {
-                        HStack(spacing: 12) {
-                            Stepper(L("Dal box \(dumpFrom)"), value: $dumpFrom, in: 1...300)
-                            Stepper(L("al box \(dumpTo)"), value: $dumpTo, in: dumpFrom...300)
-                            Picker(L("Formato"), selection: $dumpFormat) {
-                                Text(L("Decifrato (.ph)")).tag("decrypted")
-                                Text(L("Cifrato (.eh)")).tag("encrypted")
-                                Text(L("Entrambi")).tag("both")
+                        if compact {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Stepper(L("Dal box \(dumpFrom)"), value: $dumpFrom, in: 1...300)
+                                Stepper(L("al box \(dumpTo)"), value: $dumpTo, in: dumpFrom...300)
+                                dumpFormatPicker
+                                dumpButton
                             }
-                            .frame(width: 220)
-                            Spacer()
-                            Button {
-                                let panel = NSOpenPanel()
-                                panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.canCreateDirectories = true
-                                panel.prompt = L("Salva qui")
-                                if panel.runModal() == .OK, let dir = panel.url {
-                                    Task { await model.homeDump(dir: dir, from: dumpFrom - 1, to: dumpTo - 1, format: dumpFormat) }
-                                }
-                            } label: { Label(L("Salva su disco"), systemImage: "square.and.arrow.down") }
-                            .buttonStyle(.glassProminent)
+                        } else {
+                            HStack(spacing: 12) {
+                                Stepper(L("Dal box \(dumpFrom)"), value: $dumpFrom, in: 1...300)
+                                Stepper(L("al box \(dumpTo)"), value: $dumpTo, in: dumpFrom...300)
+                                dumpFormatPicker
+                                    .frame(width: 220)
+                                Spacer()
+                                dumpButton
+                            }
                         }
                     }
                 }
             }
-            .padding(26)
+            .pkPadding(26)
         }
+    }
+
+    @ViewBuilder private var homeConnectButton: some View {
+        if connected != nil {
+            Button(L("Disconnetti")) { Task { await model.homeDisconnect(); connected = nil; data = nil } }
+                .buttonStyle(.pkGlass)
+                .lineLimit(1).fixedSize()
+        } else {
+            Button(L("Connetti")) {
+                Task {
+                    connected = await model.homeConnect(ip: ip, port: port)
+                    if connected != nil { data = await model.homeBox(0) }
+                }
+            }
+            .buttonStyle(.pkGlassProminent)
+            .lineLimit(1).fixedSize()
+        }
+    }
+
+    @ViewBuilder private var homeImportButton: some View {
+        if let sel = selected, let p = sel.pokemon {
+            Button {
+                guard let slot = model.firstEmptySlot() else { model.toast(.warning, L("Box pieno"), L("Libera uno slot nel box \(model.currentBox + 1).")); return }
+                Task { await model.homeImport(homeBox: homeBox, homeSlot: sel.ref.slot, to: .box(model.currentBox, slot)) }
+            } label: {
+                Label(L("Porta \(p.displayName) nel box \(model.currentBox + 1)"), systemImage: "arrow.down.circle.fill")
+                    .lineLimit(1)
+            }
+            .buttonStyle(.pkGlassProminent)
+            .disabled(sel.transferable != true)
+        }
+    }
+
+    private var dumpFormatPicker: some View {
+        Picker(L("Formato"), selection: $dumpFormat) {
+            Text(L("Decifrato (.ph)")).tag("decrypted")
+            Text(L("Cifrato (.eh)")).tag("encrypted")
+            Text(L("Entrambi")).tag("both")
+        }
+    }
+
+    private var dumpButton: some View {
+        Button {
+            Task {
+                if let dir = await model.exportFolder(prompt: L("Salva qui")) {
+                    await model.homeDump(dir: dir, from: dumpFrom - 1, to: dumpTo - 1, format: dumpFormat)
+                }
+            }
+        } label: { Label(L("Salva su disco"), systemImage: "square.and.arrow.down").lineLimit(1) }
+        .buttonStyle(.pkGlassProminent)
     }
 }
 
@@ -424,6 +528,7 @@ struct HomeLiveView: View {
 
 struct BackupsView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.pkCompact) private var compact
     @State private var items: [BackupItem] = []
 
     var body: some View {
@@ -446,31 +551,36 @@ struct BackupsView: View {
                                     .font(.system(size: 11)).foregroundStyle(.secondary)
                             }
                             Spacer()
-                            Text(b.dateValue, style: .relative).font(.caption).foregroundStyle(.tertiary)
-                            Button { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: b.path)]) } label: { Image(systemName: "folder") }
-                                .buttonStyle(.glass)
+                            if !compact {
+                                Text(b.dateValue, style: .relative).font(.caption).foregroundStyle(.tertiary)
+                            }
+                            Button { model.reveal(URL(fileURLWithPath: b.path)) } label: { Image(systemName: Platform.isMac ? "folder" : "square.and.arrow.up") }
+                                .buttonStyle(.pkGlass)
                             Button(L("Ripristina")) {
-                                let alert = NSAlert()
-                                alert.messageText = L("Ripristinare questo backup?")
-                                alert.informativeText = L("Il file attuale verrà a sua volta salvato in un backup prima del ripristino.")
-                                alert.addButton(withTitle: L("Ripristina"))
-                                alert.addButton(withTitle: L("Annulla"))
-                                if alert.runModal() == .alertFirstButtonReturn {
-                                    Task { await model.restore(b); items = await model.backups() }
+                                Task {
+                                    if await model.ask(L("Ripristinare questo backup?"), L("Il file attuale verrà a sua volta salvato in un backup prima del ripristino."),
+                                                       buttons: [L("Ripristina"), L("Annulla")]) == 0 {
+                                        await model.restore(b); items = await model.backups()
+                                    }
                                 }
                             }
-                            .buttonStyle(.glass)
+                            .buttonStyle(.pkGlass)
+                            .lineLimit(1)
+                            .fixedSize()
                         }
                         .padding(10)
                         .background(.primary.opacity(0.03), in: .rect(cornerRadius: 14, style: .continuous))
                     }
                 }
-                Button {
-                    NSWorkspace.shared.open(AppPaths.backups)
-                } label: { Label(L("Apri la cartella dei backup"), systemImage: "folder") }
-                .buttonStyle(.glass)
+                // iOS: backups live inside the app (not visible in Files); each row has its own export button.
+                if Platform.isMac {
+                    Button {
+                        model.openFolder(AppPaths.backups)
+                    } label: { Label(L("Apri la cartella dei backup"), systemImage: "folder") }
+                    .buttonStyle(.pkGlass)
+                }
             }
-            .padding(26)
+            .pkPadding(26)
         }
         .task(id: model.lastSave?.sha256) { items = await model.backups() }
     }

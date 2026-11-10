@@ -30,8 +30,7 @@ public static class Program
     {
         Console.OutputEncoding = Encoding.UTF8;
         Console.InputEncoding = Encoding.UTF8;
-        // The HOME tracker is written only by Pokémon HOME: when it's missing we warn, we never invent one.
-        ParseSettings.Settings.HOMETransfer.HOMETransferTrackerNotPresent = Severity.Fishy;
+        Init();
 
         if (args.Contains("--version"))
         {
@@ -78,30 +77,87 @@ public static class Program
         return 0;
     }
 
+    private static bool _initialized;
+
+    /// <summary>One-time engine settings, shared by the macOS process and the iOS library.</summary>
+    public static void Init()
+    {
+        if (_initialized) return;
+        _initialized = true;
+        // The HOME tracker is written only by Pokémon HOME: when it's missing we warn, we never invent one.
+        ParseSettings.Settings.HOMETransfer.HOMETransferTrackerNotPresent = Severity.Fishy;
+    }
+
+    /// <summary>Result → JSON. In the ahead-of-time (iOS) build, without run-time generated serializers.</summary>
+    public static JsonNode? ToNode(object? result)
+    {
+#if PKMAC_NATIVE
+        return JsonOut.ToNode(result);
+#else
+        return result as JsonNode ?? JsonSerializer.SerializeToNode(result, Json);
+#endif
+    }
+
     private static void Handle(Dispatcher dispatcher, JsonNode? id, string method, JsonObject p)
+        => Send(Respond(dispatcher, id, method, p));
+
+    private static JsonObject Respond(Dispatcher dispatcher, JsonNode? id, string method, JsonObject p)
     {
         try
         {
             var result = dispatcher.Invoke(method, new Params(p));
-            var node = result as JsonNode ?? JsonSerializer.SerializeToNode(result, Json);
-            Send(new JsonObject { ["id"] = id, ["result"] = node });
+            return new JsonObject { ["id"] = id, ["result"] = ToNode(result) };
         }
         catch (Exception ex)
         {
-            SendError(id, ex);
+            return ErrorObject(id, ex);
         }
     }
 
-    private static void SendError(JsonNode? id, Exception ex)
+    private static void SendError(JsonNode? id, Exception ex) => Send(ErrorObject(id, ex));
+
+    private static JsonObject ErrorObject(JsonNode? id, Exception ex)
     {
         var inner = ex is TargetInvocationException { InnerException: { } ie } ? ie : ex;
         Log($"error: {inner}");
         var message = inner is EngineException ? inner.Message : $"{inner.GetType().Name}: {inner.Message}";
-        Send(new JsonObject { ["id"] = id?.DeepClone(), ["error"] = message });
+        return new JsonObject { ["id"] = id?.DeepClone(), ["error"] = message };
+    }
+
+    // ---------- in-process mode (iOS): no stdin/stdout, the app calls Call() and receives events ----------
+
+    /// <summary>When set, events go here (one JSON object per call) instead of stdout.</summary>
+    public static Action<string>? EventSink { get; set; }
+
+    private static Dispatcher? _library;
+    private static readonly object LibraryLock = new();
+
+    /// <summary>Runs one request line ({"id","method","params"}) and returns the response line.</summary>
+    public static string Call(string line)
+    {
+        Init();
+        lock (LibraryLock) _library ??= new Dispatcher();
+        JsonNode? id = null;
+        try
+        {
+            var req = JsonNode.Parse(line)!.AsObject();
+            id = req["id"]?.DeepClone();
+            var method = req["method"]?.GetValue<string>() ?? throw new EngineException(Tr.T($"Richiesta senza metodo."));
+            var p = req["params"] as JsonObject ?? new JsonObject();
+            return Respond(_library, id, method, p).ToJsonString(Json);
+        }
+        catch (Exception ex)
+        {
+            return ErrorObject(id, ex).ToJsonString(Json);
+        }
     }
 
     public static void Event(string name, object data)
-        => Send(new JsonObject { ["event"] = name, ["data"] = JsonSerializer.SerializeToNode(data, Json) });
+    {
+        var obj = new JsonObject { ["event"] = name, ["data"] = ToNode(data) };
+        if (EventSink is { } sink) sink(obj.ToJsonString(Json));
+        else Send(obj);
+    }
 
     private static void Send(JsonObject obj)
     {

@@ -168,7 +168,7 @@ public static partial class AzuriiZip
                     var ne = dst.CreateEntry(e.FullName, CompressionLevel.Optimal);
                     ne.LastWriteTime = now;
                     using var w = ne.Open();
-                    w.Write(JsonSerializer.SerializeToUtf8Bytes(manifest, new JsonSerializerOptions { WriteIndented = true }));
+                    w.Write(System.Text.Encoding.UTF8.GetBytes(manifest.ToJsonString(new JsonSerializerOptions { WriteIndented = true })));
                 }
                 else
                 {

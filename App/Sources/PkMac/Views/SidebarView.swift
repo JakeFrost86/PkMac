@@ -74,7 +74,7 @@ private struct SidebarRow: View {
                 .frame(width: 22, height: 22)
                 .background(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(LinearGradient(colors: [section.tint.mix(with: .white, by: 0.2), section.tint], startPoint: .top, endPoint: .bottom))
+                        .fill(LinearGradient(colors: [section.tint.pkMix(with: .white, by: 0.2), section.tint], startPoint: .top, endPoint: .bottom))
                 )
         }
         .padding(.vertical, 2)
@@ -119,7 +119,7 @@ private struct SaveCard: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassEffect(.regular.tint(model.accentType.color.opacity(0.18)), in: .rect(cornerRadius: 18))
+        .pkGlassEffect(.tinted(model.accentType.color.opacity(0.18)), in: .rect(cornerRadius: 18))
     }
 
     private struct Metric: View {
@@ -187,7 +187,7 @@ private struct EngineFooter: View {
             Spacer()
             if model.updater.coreUpdateAvailable(current: model.hello?.versions.core) || model.updater.appUpdateAvailable
                 || model.updater.engineUpdateAvailable(current: model.hello?.versions.engine) {
-                SettingsLink {
+                SettingsButton {
                     Label(L("Aggiorna"), systemImage: "arrow.down.circle.fill")
                         .labelStyle(.titleAndIcon)
                 }

@@ -56,8 +56,8 @@ enum PokeType: String, CaseIterable, Sendable {
     }
 
     /// A lighter companion color for gradients.
-    var glow: Color { color.mix(with: .white, by: 0.35) }
-    var deep: Color { color.mix(with: .black, by: 0.25) }
+    var glow: Color { color.pkMix(with: .white, by: 0.35) }
+    var deep: Color { color.pkMix(with: .black, by: 0.25) }
 
     var symbol: String {
         switch self {

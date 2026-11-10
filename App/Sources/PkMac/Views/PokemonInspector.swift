@@ -25,7 +25,8 @@ private struct NothingSelected: View {
                 .foregroundStyle(.tertiary)
                 .frame(width: 54, height: 54)
             Text(L("Seleziona un Pokémon")).font(.system(size: 16, weight: .semibold, design: .rounded))
-            Text(L("Clicca uno slot per vederlo e modificarlo.\nTrascina per spostare, ⌥ per copiare."))
+            Text(Platform.isMac ? L("Clicca uno slot per vederlo e modificarlo.\nTrascina per spostare, ⌥ per copiare.")
+                                : L("Tocca uno slot per vederlo e modificarlo.\nTrascina per spostarlo."))
                 .font(.system(size: 12.5))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
@@ -50,20 +51,19 @@ private struct EmptySlotPanel: View {
                 Button { model.showCreate = true } label: {
                     Label(L("Crea un Pokémon legale"), systemImage: "wand.and.stars").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.pkGlassProminent)
                 Button { model.showShowdownImport = true } label: {
                     Label(L("Incolla set Showdown"), systemImage: "doc.on.clipboard").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.glass)
+                .buttonStyle(.pkGlass)
                 Button {
-                    let panel = NSOpenPanel()
-                    panel.allowsMultipleSelection = false
-                    panel.message = L("Scegli un file .pk")
-                    if panel.runModal() == .OK, let url = panel.url { Task { await model.importPk(url, to: ref) } }
+                    Task {
+                        if let url = await model.pickFile(message: L("Scegli un file .pk")) { await model.importPk(url, to: ref) }
+                    }
                 } label: {
                     Label(L("Importa file .pk…"), systemImage: "doc.badge.plus").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.glass)
+                .buttonStyle(.pkGlass)
             }
             .controlSize(.large)
             .frame(maxWidth: 260)
@@ -101,7 +101,8 @@ private enum DetailTab: String, CaseIterable, Identifiable {
 struct PokemonDetailView: View {
     @Environment(AppModel.self) private var model
     let detail: PokemonDetail
-    @State private var tab: DetailTab = .summary
+    // PKMAC_TAB: starting tab for the iOS screenshot runs (iOS/build.sh shots).
+    @State private var tab: DetailTab = DetailTab(rawValue: ProcessInfo.processInfo.environment["PKMAC_TAB"] ?? "") ?? .summary
     @State private var showAdvanced = false
 
     private var type: PokeType { PokeType(key: detail.summary.primaryType) }
@@ -120,14 +121,16 @@ struct PokemonDetailView: View {
                         Label(L("Dati avanzati · \(detail.summary.displayName)"), systemImage: "slider.horizontal.3")
                             .font(.system(size: 16, weight: .bold, design: .rounded))
                         Spacer()
-                        Button(L("Fine")) { showAdvanced = false }.keyboardShortcut(.defaultAction).buttonStyle(.glassProminent)
+                        Button(L("Fine")) { showAdvanced = false }.keyboardShortcut(.defaultAction).buttonStyle(.pkGlassProminent)
                     }
-                    Text(L("Ogni proprietà del Pokémon come la vede PKHeX. Le modifiche si applicano subito e sono annullabili con ⌘Z."))
+                    Text(Platform.isMac ? L("Ogni proprietà del Pokémon come la vede PKHeX. Le modifiche si applicano subito e sono annullabili con ⌘Z.")
+                                        : L("Ogni proprietà del Pokémon come la vede PKHeX. Le modifiche si applicano subito e sono annullabili con il tasto Annulla."))
                         .font(.caption).foregroundStyle(.secondary)
                     InspectorBrowser(target: ["target": "pkm", "ref": detail.summary.ref.json], rootTitle: detail.summary.displayName)
                 }
                 .padding(20)
-                .frame(width: 720, height: 620)
+                .pkSheetFrame(width: 720, height: 620)
+                .modifier(PKWidthReader())
             }
     }
 
@@ -145,7 +148,7 @@ struct PokemonDetailView: View {
                     .pickerStyle(.segmented)
                     .labelsHidden()
                     Button { showAdvanced = true } label: { Image(systemName: "slider.horizontal.3") }
-                        .buttonStyle(.glass)
+                        .buttonStyle(.pkGlass)
                         .help(L("Dati avanzati: tutti i campi del Pokémon"))
                 }
                 Text(tab.title)
@@ -222,7 +225,7 @@ private struct Hero: View {
                                 editingName = false
                                 Task { await model.update(["nickname": name]) }
                             }
-                            .onExitCommand { editingName = false }
+                            .pkOnExitCommand { editingName = false }
                     } else {
                         Text(s.displayName)
                             .font(.system(size: 26, weight: .heavy, design: .rounded))
@@ -299,12 +302,12 @@ private struct LegalityBanner: View {
                 Button { Task { await model.legalize(detail.summary.ref) } } label: {
                     Label(L("Rendi legale"), systemImage: "wand.and.stars")
                 }
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.pkGlassProminent)
                 .tint(.orange)
                 .controlSize(.small)
             }
             Button { showReport = true } label: { Image(systemName: "doc.text.magnifyingglass") }
-                .buttonStyle(.glass)
+                .buttonStyle(.pkGlass)
                 .controlSize(.small)
                 .help(L("Rapporto di legalità completo"))
                 .popover(isPresented: $showReport) {
@@ -315,11 +318,11 @@ private struct LegalityBanner: View {
                             .padding(16)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .frame(width: 440, height: 380)
+                    .pkPopoverFrame(width: 440, height: 380)
                 }
         }
         .padding(12)
-        .glassEffect(.regular.tint((ok ? Color.green : .red).opacity(0.12)), in: .rect(cornerRadius: 16))
+        .pkGlassEffect(.tinted((ok ? Color.green : .red).opacity(0.12)), in: .rect(cornerRadius: 16))
     }
 
     private var firstProblem: String {
@@ -458,7 +461,7 @@ private struct SummaryTab: View {
                 .font(.system(size: 12, design: .monospaced))
                 .onSubmit { Task { await model.update([key: text.wrappedValue]) } }
             Button { Task { await model.update([reroll: true]) } } label: { Image(systemName: "dice") }
-                .buttonStyle(.glass).controlSize(.small).help(help)
+                .buttonStyle(.pkGlass).controlSize(.small).help(help)
         }
         .font(.system(size: 12.5, design: .rounded))
     }
@@ -513,7 +516,7 @@ private struct StatsTab: View {
                         Button(L("Trick Room (Vel 0)")) { ivs = Array(repeating: Double(detail.maxIV), count: 6); ivs[5] = 0; commitIVs() }
                         Spacer()
                     }
-                    .buttonStyle(.glass)
+                    .buttonStyle(.pkGlass)
                     .controlSize(.small)
                 }
             }
@@ -540,7 +543,7 @@ private struct StatsTab: View {
                         Button(L("252 Att / 252 Vel")) { evs = [4, 252, 0, 0, 0, 252]; commitEVs() }
                         Button(L("252 AtSp / 252 Vel")) { evs = [4, 0, 0, 252, 0, 252]; commitEVs() }
                     }
-                    .buttonStyle(.glass)
+                    .buttonStyle(.pkGlass)
                     .controlSize(.small)
                     .disabled(detail.format < 3)
                 }
@@ -727,12 +730,12 @@ private struct OriginTab: View {
             Spacer()
             if let value, let d = Self.fmt.date(from: value) {
                 DatePicker("", selection: Binding(get: { d }, set: { set([key: Self.fmt.string(from: $0)]) }), displayedComponents: .date)
-                    .labelsHidden().datePickerStyle(.field)
+                    .labelsHidden().pkFieldDatePicker()
                 Button { set([key: ""]) } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary) }
                     .buttonStyle(.plain).help(L("Nessuna data"))
             } else {
                 Text("—").foregroundStyle(.tertiary)
-                Button(L("Imposta")) { set([key: Self.fmt.string(from: Date())]) }.buttonStyle(.glass).controlSize(.small)
+                Button(L("Imposta")) { set([key: Self.fmt.string(from: Date())]) }.buttonStyle(.pkGlass).controlSize(.small)
             }
         }
         .font(.system(size: 13, design: .rounded))
@@ -749,7 +752,7 @@ private struct OriginTab: View {
             Button { Task { await model.legalize(detail.summary.ref, mine: true) } } label: {
                 Label(L("Rendi mio"), systemImage: "person.crop.circle.badge.checkmark")
             }
-            .buttonStyle(.glass).controlSize(.small)
+            .buttonStyle(.pkGlass).controlSize(.small)
             .help(L("Mette nome, sesso, ID e lingua dell'allenatore del salvataggio, poi lo rende legale. Prima di applicare ti mostro cosa cambia."))
         )) {
             VStack(spacing: 8) {
@@ -851,13 +854,13 @@ private struct OriginTab: View {
             VStack(spacing: 8) {
                 HStack {
                     field("PID", $pid, key: "pid", width: 110, mono: true)
-                    Button { set(["rerollPid": true]) } label: { Image(systemName: "dice") }.buttonStyle(.glass).controlSize(.small)
+                    Button { set(["rerollPid": true]) } label: { Image(systemName: "dice") }.buttonStyle(.pkGlass).controlSize(.small)
                         .help(L("Nuovo PID casuale (mantiene il sesso)"))
                 }
                 if o.hasEc {
                     HStack {
                         field(L("Encryption constant"), $ec, key: "ec", width: 110, mono: true)
-                        Button { set(["rerollEc": true]) } label: { Image(systemName: "dice") }.buttonStyle(.glass).controlSize(.small)
+                        Button { set(["rerollEc": true]) } label: { Image(systemName: "dice") }.buttonStyle(.pkGlass).controlSize(.small)
                             .help(L("Nuova encryption constant casuale"))
                     }
                 }
@@ -897,7 +900,7 @@ private struct ActionBar: View {
 
     var body: some View {
         let ref = detail.summary.ref
-        GlassEffectContainer(spacing: 8) {
+        PKGlassContainer(spacing: 8) {
             HStack(spacing: 8) {
                 Button { Task { await model.copyShowdown(ref) } } label: { Label("Showdown", systemImage: "doc.on.doc") }
                 Button { model.exportPk(ref) } label: { Label(L("Esporta"), systemImage: "square.and.arrow.up") }
@@ -906,7 +909,7 @@ private struct ActionBar: View {
                 Button(role: .destructive) { Task { await model.delete(ref) } } label: { Image(systemName: "trash") }
                     .help(L("Rilascia"))
             }
-            .buttonStyle(.glass)
+            .buttonStyle(.pkGlass)
             .controlSize(.small)
         }
         .disabled(!detail.canEdit)
@@ -934,7 +937,7 @@ private struct RibbonsTab: View {
                         Button { Task { data = await model.setRibbons(ref, action: "allValid") ?? data } } label: { Label(L("Tutti quelli ottenibili legalmente"), systemImage: "rosette") }
                         Button(role: .destructive) { Task { data = await model.setRibbons(ref, action: "removeAll") ?? data } } label: { Label(L("Togli tutti"), systemImage: "xmark") }
                     } label: { Image(systemName: "wand.and.stars") }
-                    .menuIndicator(.hidden).buttonStyle(.glass).controlSize(.small)
+                    .menuIndicator(.hidden).buttonStyle(.pkGlass).controlSize(.small)
                 }
                 if d.ribbons.contains(where: \.mark) {
                     Picker("", selection: $marks) { Text(L("Fiocchi")).tag(false); Text(L("Emblemi")).tag(true) }
@@ -1068,13 +1071,14 @@ struct LegalizePreviewSheet: View {
             HStack {
                 Spacer()
                 Button(L("Annulla")) { model.pendingLegalize = nil; dismiss() }
-                    .keyboardShortcut(.cancelAction).buttonStyle(.glass)
+                    .keyboardShortcut(.cancelAction).buttonStyle(.pkGlass)
                 Button(p.legal ? L("Applica") : L("Applica comunque")) { Task { await model.applyPendingLegalize() } }
-                    .keyboardShortcut(.defaultAction).buttonStyle(.glassProminent)
+                    .keyboardShortcut(.defaultAction).buttonStyle(.pkGlassProminent)
                     .disabled(p.changes.isEmpty)
             }
         }
         .padding(22)
-        .frame(width: 560)
+        .pkSheetScroll()
+        .pkSheetFrame(width: 560)
     }
 }

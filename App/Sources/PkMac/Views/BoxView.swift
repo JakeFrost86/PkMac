@@ -7,12 +7,13 @@ extension UTType {
 
 struct BoxView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.pkCompact) private var compact
     @Namespace private var selectionNS
 
     var body: some View {
         VStack(spacing: 0) {
             BoxHeader()
-                .padding(.horizontal, 26)
+                .pkPadding(.horizontal, 26)
                 .padding(.top, 18)
             BoxStrip()
                 .padding(.top, 12)
@@ -21,12 +22,14 @@ struct BoxView: View {
                 if let box = model.box {
                     let columns = (model.save?.boxSlotCount ?? 30) <= 20 ? 5 : 6
                     let rows = Int(ceil(Double(box.slots.count) / Double(columns)))
-                    let spacing: CGFloat = 12
-                    let side = min((geo.size.width - 52 - spacing * CGFloat(columns - 1)) / CGFloat(columns),
+                    let spacing: CGFloat = compact ? 6 : 12
+                    let margin: CGFloat = compact ? 28 : 52
+                    let minSide: CGFloat = compact ? 40 : 64
+                    let side = min((geo.size.width - margin - spacing * CGFloat(columns - 1)) / CGFloat(columns),
                                    (geo.size.height - 30 - spacing * CGFloat(rows - 1)) / CGFloat(rows))
-                    LazyVGrid(columns: Array(repeating: GridItem(.fixed(max(64, side)), spacing: spacing), count: columns), spacing: spacing) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.fixed(max(minSide, side)), spacing: spacing), count: columns), spacing: spacing) {
                         ForEach(box.slots) { slot in
-                            SlotCell(slot: slot, size: max(64, side), namespace: selectionNS)
+                            SlotCell(slot: slot, size: max(minSide, side), namespace: selectionNS)
                         }
                     }
                     .id(box.box)
@@ -34,7 +37,7 @@ struct BoxView: View {
                         insertion: .move(edge: model.boxDirection).combined(with: .opacity),
                         removal: .move(edge: model.boxDirection == .trailing ? .leading : .trailing).combined(with: .opacity)))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(.horizontal, 26)
+                    .pkPadding(.horizontal, 26)
                 }
             }
             .clipped()
@@ -50,7 +53,7 @@ struct BoxView: View {
             if !Diag.off("DOCK"), model.save?.hasParty == true, !model.party.isEmpty {
                 PartyDock()
                     .frame(height: 78)
-                    .padding(.horizontal, 26)
+                    .pkPadding(.horizontal, 26)
                     .padding(.bottom, 14)
             }
         }
@@ -66,7 +69,7 @@ private struct BoxHeader: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            GlassEffectContainer(spacing: 6) {
+            PKGlassContainer(spacing: 6) {
                 HStack(spacing: 6) {
                     Button { Task { await model.showBox(model.currentBox - 1) } } label: {
                         Image(systemName: "chevron.left").font(.system(size: 13, weight: .bold)).frame(width: 30, height: 30)
@@ -75,7 +78,7 @@ private struct BoxHeader: View {
                         Image(systemName: "chevron.right").font(.system(size: 13, weight: .bold)).frame(width: 30, height: 30)
                     }
                 }
-                .buttonStyle(.glass)
+                .buttonStyle(.pkGlass)
             }
 
             VStack(alignment: .leading, spacing: 1) {
@@ -87,7 +90,7 @@ private struct BoxHeader: View {
                             editing = false
                             Task { await model.renameBox(newName) }
                         }
-                        .onExitCommand { editing = false }
+                        .pkOnExitCommand { editing = false }
                 } else {
                     Text(model.box?.name ?? "")
                         .font(.system(size: 26, weight: .bold, design: .rounded))
@@ -107,7 +110,7 @@ private struct BoxHeader: View {
 
             Spacer()
 
-            GlassEffectContainer(spacing: 8) {
+            PKGlassContainer(spacing: 8) {
                 HStack(spacing: 8) {
                     Button { model.showShowdownImport = true } label: {
                         Label(L("Importa Showdown"), systemImage: "square.and.arrow.down.on.square")
@@ -126,7 +129,7 @@ private struct BoxHeader: View {
                     }
                     .menuIndicator(.hidden)
                 }
-                .buttonStyle(.glass)
+                .buttonStyle(.pkGlass)
             }
         }
     }
@@ -174,7 +177,7 @@ private struct BoxStrip: View {
                         .id(b.box)
                     }
                 }
-                .padding(.horizontal, 26)
+                .pkPadding(.horizontal, 26)
             }
             .onChange(of: model.currentBox) { _, new in
                 withAnimation(Theme.spring) { proxy.scrollTo(new, anchor: .center) }
@@ -232,23 +235,26 @@ private struct BoxChipDrop: ViewModifier {
 /// Compact party row under the box grid: drag between party and boxes.
 struct PartyDock: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.pkCompact) private var compact
     @Namespace private var ns
 
     var body: some View {
-        HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(L("Squadra")).font(.system(size: 12, weight: .bold, design: .rounded))
-                Text(L("trascina ⇅")).font(.system(size: 10, design: .rounded)).foregroundStyle(.secondary)
+        HStack(spacing: compact ? 6 : 10) {
+            if !compact {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(L("Squadra")).font(.system(size: 12, weight: .bold, design: .rounded))
+                    Text(L("trascina ⇅")).font(.system(size: 10, design: .rounded)).foregroundStyle(.secondary)
+                }
+                .frame(width: 64, alignment: .leading)
             }
-            .frame(width: 64, alignment: .leading)
             ForEach(model.party) { p in
-                SlotCell(slot: p, size: 54, namespace: ns)
+                SlotCell(slot: p, size: compact ? 46 : 54, namespace: ns)
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 9)
-        .glassEffect(.regular, in: .rect(cornerRadius: 20))
+        .padding(.horizontal, compact ? 10 : 14)
+        .padding(.vertical, compact ? 7 : 9)
+        .pkGlassEffect(.regular, in: .rect(cornerRadius: 20))
     }
 }
 
@@ -289,6 +295,7 @@ struct SlotCell: View {
             } else {
                 Task { await model.select(slot.ref) }
             }
+            model.inspectRequests += 1
         }
         .contextMenu { SlotMenu(slot: slot) }
         .onDrag {

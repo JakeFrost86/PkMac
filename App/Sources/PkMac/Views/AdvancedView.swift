@@ -4,6 +4,7 @@ import SwiftUI
 /// list of Switch games.
 struct AdvancedView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.pkCompact) private var compact
     @State private var mode = 0
     @State private var blockTarget: (key: String, name: String)?
 
@@ -12,34 +13,50 @@ struct AdvancedView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Header(title: L("Dati avanzati"), subtitle: L("Ogni valore del salvataggio che PKHeX sa leggere e scrivere"), symbol: "slider.horizontal.below.square.and.square.filled", tint: AppSection.advanced.tint)
-            HStack {
-                Picker("", selection: $mode) {
-                    Text(L("Campi del salvataggio")).tag(0)
-                    if hasBlocks { Text(L("Blocchi di gioco")).tag(1) }
+            if compact {
+                // Narrow screens: the picker takes the whole width, the note goes below it.
+                VStack(alignment: .leading, spacing: 6) {
+                    modePicker.frame(maxWidth: .infinity)
+                    Label(Platform.isMac ? L("Modifiche annullabili con ⌘Z · verificate al salvataggio")
+                                         : L("Modifiche annullabili con il tasto Annulla · verificate al salvataggio"), systemImage: "checkmark.shield")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .pickerStyle(.segmented).labelsHidden().frame(width: 340)
-                Spacer()
-                Label(L("Modifiche annullabili con ⌘Z · verificate al salvataggio"), systemImage: "checkmark.shield")
-                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                HStack {
+                    modePicker.frame(width: 340)
+                    Spacer()
+                    Label(Platform.isMac ? L("Modifiche annullabili con ⌘Z · verificate al salvataggio")
+                                         : L("Modifiche annullabili con il tasto Annulla · verificate al salvataggio"), systemImage: "checkmark.shield")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
             Group {
                 if mode == 1, hasBlocks {
                     if let b = blockTarget {
                         VStack(alignment: .leading, spacing: 8) {
-                            Button { blockTarget = nil } label: { Label(L("Tutti i blocchi"), systemImage: "chevron.left") }.buttonStyle(.glass)
-                            InspectorBrowser(target: ["target": "block", "key": b.key], rootTitle: b.name)
+                            Button { blockTarget = nil } label: { Label(L("Tutti i blocchi"), systemImage: "chevron.left") }.buttonStyle(.pkGlass)
+                            InspectorBrowser(target: ["target": "block", "key": b.key], rootTitle: b.name, compact: compact)
                         }
                     } else {
                         BlocksList { key, name in blockTarget = (key, name) }
                     }
                 } else {
-                    InspectorBrowser(target: ["target": "save"], rootTitle: model.save?.game ?? L("Salvataggio"))
+                    InspectorBrowser(target: ["target": "save"], rootTitle: model.save?.game ?? L("Salvataggio"), compact: compact)
                 }
             }
             .frame(maxHeight: .infinity, alignment: .top)
         }
-        .padding(26)
+        .pkPadding(26)
         .onChange(of: model.save?.path) { _, _ in blockTarget = nil; mode = 0 }
+    }
+
+    private var modePicker: some View {
+        Picker("", selection: $mode) {
+            Text(L("Campi del salvataggio")).tag(0)
+            if hasBlocks { Text(L("Blocchi di gioco")).tag(1) }
+        }
+        .pickerStyle(.segmented).labelsHidden()
     }
 }
 
@@ -176,6 +193,7 @@ private struct PropRow: View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 0) {
                 Text(prop.name).font(.system(size: 12, weight: .medium)).lineLimit(1)
+                    .minimumScaleFactor(compact ? 0.75 : 1)
                 if !compact { Text(prop.type).font(.system(size: 9.5, design: .monospaced)).foregroundStyle(.tertiary) }
             }
             Spacer(minLength: 8)
@@ -215,6 +233,7 @@ private struct PropRow: View {
 
 private struct BlocksList: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.pkCompact) private var compact
     let onOpen: (String, String) -> Void
     @State private var data: BlocksData?
     @State private var query = ""
@@ -222,15 +241,20 @@ private struct BlocksList: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                HStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    TextField(L("Cerca per nome o chiave (es. Money, Badge, Raid, 0x…)"), text: $query).textFieldStyle(.plain)
+            if compact {
+                VStack(alignment: .leading, spacing: 8) {
+                    searchField
+                    HStack {
+                        Toggle(L("Solo valori e sezioni"), isOn: $valuesOnly).toggleStyle(.switch).controlSize(.small)
+                        if let d = data { Text("\(d.blocks.count) di \(d.total ?? 0)").font(.caption).foregroundStyle(.secondary) }
+                    }
                 }
-                .padding(.horizontal, 10).padding(.vertical, 7)
-                .background(.primary.opacity(0.05), in: Capsule())
-                Toggle(L("Solo valori e sezioni"), isOn: $valuesOnly).toggleStyle(.switch).controlSize(.small)
-                if let d = data { Text("\(d.blocks.count) di \(d.total ?? 0)").font(.caption).foregroundStyle(.secondary) }
+            } else {
+                HStack(spacing: 10) {
+                    searchField
+                    Toggle(L("Solo valori e sezioni"), isOn: $valuesOnly).toggleStyle(.switch).controlSize(.small)
+                    if let d = data { Text("\(d.blocks.count) di \(d.total ?? 0)").font(.caption).foregroundStyle(.secondary) }
+                }
             }
             if let d = data {
                 List(d.blocks) { b in
@@ -240,11 +264,12 @@ private struct BlocksList: View {
                             .frame(width: 18)
                         VStack(alignment: .leading, spacing: 0) {
                             Text(b.name).font(.system(size: 12.5, weight: b.named ? .semibold : .regular, design: b.named ? .rounded : .monospaced))
+                                .lineLimit(compact ? 1 : nil)
                             Text("\(b.key) · \(b.type)\(b.size > 8 ? " · \(b.size) byte" : "")").font(.system(size: 9.5, design: .monospaced)).foregroundStyle(.tertiary)
                         }
                         Spacer()
                         if b.hasObject {
-                            Button(L("Apri")) { onOpen(b.key, b.name) }.buttonStyle(.glass).controlSize(.small)
+                            Button(L("Apri")) { onOpen(b.key, b.name) }.buttonStyle(.pkGlass).controlSize(.small)
                         }
                         if b.editable { BlockValue(block: b) }
                     }
@@ -261,10 +286,20 @@ private struct BlocksList: View {
             data = await model.blocks(query: query, valuesOnly: valuesOnly)
         }
     }
+
+    private var searchField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            TextField(L("Cerca per nome o chiave (es. Money, Badge, Raid, 0x…)"), text: $query).textFieldStyle(.plain)
+        }
+        .padding(.horizontal, 10).padding(.vertical, 7)
+        .background(.primary.opacity(0.05), in: Capsule())
+    }
 }
 
 private struct BlockValue: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.pkCompact) private var compact
     let block: BlockRow
     @State private var text = ""
     @State private var on = false
@@ -279,7 +314,7 @@ private struct BlockValue: View {
                 .toggleStyle(.switch).controlSize(.small).labelsHidden()
             } else {
                 TextField("", text: $text)
-                    .textFieldStyle(.roundedBorder).frame(width: 150)
+                    .textFieldStyle(.roundedBorder).frame(width: compact ? 100 : 150)
                     .multilineTextAlignment(.trailing)
                     .font(.system(size: 12, design: .monospaced))
                     .onSubmit { Task { _ = await model.setBlock(key: block.key, value: text) } }

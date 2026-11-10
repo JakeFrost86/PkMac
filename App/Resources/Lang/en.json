@@ -908,5 +908,20 @@
  "Il Pokémon è cambiato dopo l'anteprima: ripeti l'operazione.": "The Pokémon changed after the preview: run it again.",
  "Luogo d'incontro": "Met location",
  "Mosse ricordabili": "Relearn moves",
- "Nessuna modifica in attesa per questo Pokémon.": "No pending changes for this Pokémon."
+ "Nessuna modifica in attesa per questo Pokémon.": "No pending changes for this Pokémon.",
+ "Puoi annullare con il tasto Annulla.": "You can undo with the Undo button.",
+ "Convertito e verificato per il gioco di destinazione. Il tasto Annulla annulla il trasferimento in entrambi i salvataggi.": "Converted and checked for the destination game. The Undo button undoes the transfer in both saves.",
+ "Trascina un Pokémon da un gioco all'altro · i trasferimenti impossibili vengono bloccati": "Drag a Pokémon from one game to the other · impossible transfers are blocked",
+ "Modifiche annullabili con il tasto Annulla · verificate al salvataggio": "Changes can be undone with the Undo button · verified on save",
+ "Serve sys-botbase 2.5 o successivo sulla Switch (porta 6000). La connessione è via Wi-Fi.": "Requires sys-botbase 2.5 or later on the Switch (port 6000). The connection goes through Wi-Fi.",
+ "L'editor di salvataggi Pokémon, ora anche su iPhone e iPad.": "The Pokémon save editor, now on iPhone and iPad too.",
+ "Automatica (lingua del sistema)": "Automatic (system language)",
+ "Tocca uno slot per vederlo e modificarlo.\nTrascina per spostarlo.": "Tap a slot to view and edit it.\nDrag to move it.",
+ "Ogni proprietà del Pokémon come la vede PKHeX. Le modifiche si applicano subito e sono annullabili con il tasto Annulla.": "Every property of the Pokémon as PKHeX sees it. Changes apply immediately and can be undone with the Undo button.",
+ "Cambia l'icona nella schermata Home.": "Changes the icon on the Home Screen.",
+ "Vale anche per i nomi di Pokémon, mosse e strumenti e per i messaggi di legalità.": "It also applies to Pokémon, move and item names and to legality messages.",
+ "Gli sprite di github.com/PokeAPI/sprites vengono scaricati la prima volta e poi restano sul dispositivo.": "Sprites from github.com/PokeAPI/sprites are downloaded the first time and then stay on your device.",
+ "Apri PkMac nell'app File": "Open PkMac in the Files app",
+ "Editor di salvataggi Pokémon per iPhone e iPad, basato su PKHeX.Core.": "Pokémon save editor for iPhone and iPad, based on PKHeX.Core.",
+ "Backup sul dispositivo": "Backups on this device"
 }

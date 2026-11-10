@@ -27,7 +27,7 @@ struct BagView: View {
                 itemsGrid
             }
         }
-        .padding(26)
+        .pkPadding(26)
         .task(id: model.save?.path) { await load() }
     }
 
@@ -63,7 +63,7 @@ struct BagView: View {
                     }
                     .font(.system(size: 12, weight: on ? .bold : .medium, design: .rounded))
                 }
-                .buttonStyle(.glass)
+                .buttonStyle(.pkGlass)
                 .controlSize(.small)
                 .tint(on ? AppSection.bag.tint : nil)
             }
@@ -85,7 +85,7 @@ struct BagView: View {
                     .font(.system(size: 11.5, design: .rounded)).foregroundStyle(.secondary)
             }
             Spacer()
-            GlassEffectContainer(spacing: 8) {
+            PKGlassContainer(spacing: 8) {
                 HStack(spacing: 8) {
                     Button { adding = true } label: { Label(L("Aggiungi"), systemImage: "plus") }
                         .disabled((pouch?.items.count ?? 0) >= (pouch?.capacity ?? 0))
@@ -108,12 +108,12 @@ struct BagView: View {
                     .menuIndicator(.hidden)
                     .help(L("Azioni rapide sulla tasca"))
                 }
-                .buttonStyle(.glass)
+                .buttonStyle(.pkGlass)
             }
             if dirty {
-                Button(L("Annulla")) { Task { await load() } }.buttonStyle(.glass)
+                Button(L("Annulla")) { Task { await load() } }.buttonStyle(.pkGlass)
                 Button { Task { await apply() } } label: { Label(L("Applica"), systemImage: "checkmark") }
-                    .buttonStyle(.glassProminent)
+                    .buttonStyle(.pkGlassProminent)
                     .keyboardShortcut(.return, modifiers: .command)
                     .transition(.scale.combined(with: .opacity))
             }
@@ -261,8 +261,8 @@ struct ItemPicker: View {
             }
             .listStyle(.plain)
         }
-        .frame(width: 320, height: 420)
-        .onAppear { focused = true }
+        .pkPopoverFrame(width: 320, height: 420)
+        .onAppear { focused = Platform.isMac }   // iPhone: browse first, the keyboard opens on tap
     }
 }
 

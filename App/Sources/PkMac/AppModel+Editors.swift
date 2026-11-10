@@ -61,36 +61,29 @@ extension AppModel {
     // MARK: - Second save
 
     func openSecondPanel() {
-        let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        panel.message = L("Scegli il secondo salvataggio verso cui (o da cui) trasferire i Pokémon")
-        panel.prompt = L("Apri")
-        if panel.runModal() == .OK, let url = panel.url {
-            Task { await openSecond(url) }
+        Task {
+            if let url = await pickFile(message: L("Scegli il secondo salvataggio verso cui (o da cui) trasferire i Pokémon")) {
+                await openSecond(url)
+            }
         }
     }
 
     func openSecond(_ url: URL, entry: String? = nil) async {
         if saveB?.dirty == true {
-            let alert = NSAlert()
-            alert.messageText = L("Il secondo salvataggio ha modifiche non salvate")
-            alert.addButton(withTitle: L("Salva"))
-            alert.addButton(withTitle: L("Non salvare"))
-            alert.addButton(withTitle: L("Annulla"))
-            switch alert.runModal() {
-            case .alertFirstButtonReturn: await saveSecond()
-            case .alertThirdButtonReturn: return
+            switch await ask(L("Il secondo salvataggio ha modifiche non salvate"), buttons: [L("Salva"), L("Non salvare"), L("Annulla")]) {
+            case 0: await saveSecond()
+            case 2: return
             default: break
             }
         }
         await perform(L("Apro il secondo salvataggio…")) {
-            var params: [String: Any] = ["path": url.path, "save": "b"]
+            let target = try FileBridge.prepare(url)
+            var params: [String: Any] = ["path": target.path, "save": "b"]
             if let entry { params["entry"] = entry }
             let raw = try await send("open", params)
             if let choice = try? JSONDecoder().decode(OpenChoice.self, from: raw), choice.needsChoice, let first = choice.saves.first {
                 // Azurii zip with several saves: take the most recent; the user can reopen another from the menu.
-                let again = try await send("open", ["path": url.path, "save": "b", "entry": first.entry])
+                let again = try await send("open", ["path": target.path, "save": "b", "entry": first.entry])
                 saveB = try JSONDecoder().decode(SaveInfo.self, from: again)
                 toast(.info, L("Zip con più salvataggi"), L("Ho aperto \(first.game)."))
             } else {
@@ -135,6 +128,7 @@ extension AppModel {
         guard saveB != nil else { return }
         await perform(L("Verifico e salvo il secondo salvataggio…")) {
             let result: SaveResult = try await call("save", ["backup": true, "save": "b"])
+            try FileBridge.writeBack(result.path)
             try await reloadB()
             toast(.success, L("Secondo salvataggio scritto"), L("Checksum verificati\(result.backup != nil ? ", backup creato" : "")."))
         }
@@ -169,7 +163,9 @@ extension AppModel {
             await reloadTransferA()
             try await reloadB()
             let dest = to.save == "a" ? save?.game : saveB?.game
-            toast(.success, copy ? L("Copiato in \(dest ?? "")") : L("Trasferito in \(dest ?? "")"), L("Convertito e verificato per il gioco di destinazione. ⌘Z annulla il trasferimento in entrambi i salvataggi."))
+            toast(.success, copy ? L("Copiato in \(dest ?? "")") : L("Trasferito in \(dest ?? "")"), Platform.isMac
+                  ? L("Convertito e verificato per il gioco di destinazione. ⌘Z annulla il trasferimento in entrambi i salvataggi.")
+                  : L("Convertito e verificato per il gioco di destinazione. Il tasto Annulla annulla il trasferimento in entrambi i salvataggi."))
         } catch {
             toast(.error, L("Trasferimento non permesso"), error.localizedDescription)
         }
@@ -248,10 +244,7 @@ extension AppModel {
     func setGiftFlags(_ params: [String: Any]) async -> GiftAlbum? { await edit("giftFlags", params) }
 
     func importGiftFile() async -> Bool {
-        let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = false
-        panel.message = L("Scegli un file dono segreto (.wc9, .wc8, .wb7, .wc7, .wc6, .pgf, .pcd, .pgt, .wa8…)")
-        guard panel.runModal() == .OK, let url = panel.url else { return false }
+        guard let url = await pickFile(message: L("Scegli un file dono segreto (.wc9, .wc8, .wb7, .wc7, .wc6, .pgf, .pcd, .pgt, .wa8…)")) else { return false }
         var ok = false
         await perform(L("Importo il dono…")) {
             _ = try await send("giftImportFile", ["path": url.path])

@@ -1,4 +1,8 @@
+#if os(macOS)
 import AppKit
+#else
+import UIKit
+#endif
 import SwiftUI
 
 /// Persistent log: ~/Library/Logs/PkMac/PkMac.log (rotated at 2 MB).
@@ -39,6 +43,7 @@ enum Log {
     static func error(_ s: String) { write("ERRORE", s) }
 }
 
+#if os(macOS)
 /// Catches errors instead of letting the app close: AppKit exceptions become a log entry plus a
 /// popup, and a hard crash leaves a report that is shown at the next launch.
 @objc(PkMacApplication)
@@ -147,3 +152,52 @@ enum ErrorReporter {
         NSWorkspace.shared.activateFileViewerSelecting([Log.file])
     }
 }
+#else
+/// iPhone / iPad: uncaught exceptions and fatal signals leave a report in the log and a marker that
+/// is shown at the next launch (there are no app-modal alerts on iOS: `onReport` lets the UI show them).
+enum ErrorReporter {
+    /// Set by the iOS app to present title + detail (e.g. as an alert). Without it, reports only go to the log.
+    @MainActor static var onReport: ((String, String) -> Void)?
+
+    static func install() {
+        NSSetUncaughtExceptionHandler { e in
+            Log.error("Eccezione non gestita: \(e.name.rawValue): \(e.reason ?? "")\n\(e.callStackSymbols.joined(separator: "\n"))")
+            ErrorReporter.writeMarker(L("Eccezione: \(e.name.rawValue)\n\(e.reason ?? "")\n\n\(e.callStackSymbols.prefix(30).joined(separator: "\n"))"))
+        }
+        for sig in [SIGABRT, SIGSEGV, SIGBUS, SIGILL, SIGTRAP, SIGFPE] {
+            signal(sig) { s in
+                ErrorReporter.writeMarker(L("Segnale \(s) (\(String(cString: strsignal(s))))\n\n\(Thread.callStackSymbols.prefix(40).joined(separator: "\n"))"))
+                signal(s, SIG_DFL)
+                raise(s)
+            }
+        }
+        Log.app("Avvio PkMac \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?") (\(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?")) · iOS \(ProcessInfo.processInfo.operatingSystemVersionString)")
+    }
+
+    static func writeMarker(_ text: String) {
+        let body = "\(Date())\n\(text)\n"
+        try? body.write(to: Log.crashMarker, atomically: false, encoding: .utf8)
+        if let h = try? FileHandle(forWritingTo: Log.file) {
+            h.seekToEndOfFile(); h.write(Data(L("[CRASH] \(body)").utf8)); try? h.close()
+        }
+    }
+
+    /// Shown at launch when the previous session ended with a crash.
+    @MainActor static func checkPreviousCrash() {
+        guard let text = try? String(contentsOf: Log.crashMarker, encoding: .utf8) else { return }
+        try? FileManager.default.removeItem(at: Log.crashMarker)
+        show(title: L("L'ultima volta PkMac si è chiusa per un errore"), detail: String(text.prefix(600))) { _ in }
+    }
+
+    @MainActor static func show(title: String, detail: String, done: @escaping (Bool) -> Void) {
+        Log.error("\(title): \(detail)")
+        onReport?(title, detail)
+        done(false)
+    }
+
+    /// The log lives in the app's Library folder; there is no file browser to reveal it in.
+    static func revealLog() {
+        if !FileManager.default.fileExists(atPath: Log.file.path) { try? Data().write(to: Log.file) }
+    }
+}
+#endif

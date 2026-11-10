@@ -1,5 +1,9 @@
 import SwiftUI
+#if os(macOS)
 import AppKit
+#else
+import UIKit
+#endif
 
 /// The PkMac logo without its tile: the sphere from the artwork (Sphere.png) with a Saturn-like ring
 /// drawn live around it. A bright glint travels around the ring (passing behind and in front of the
@@ -168,10 +172,13 @@ enum AppIconManager {
         Bundle.main.url(forResource: id, withExtension: "png", subdirectory: "Icons").flatMap(NSImage.init(contentsOf:))
     }
 
-    /// Dock icon right away, Finder icon of the app bundle too (the default removes the custom one).
+    /// macOS: Dock icon right away, Finder icon of the app bundle too (the default removes the custom one).
+    /// iPhone / iPad: the home-screen icon, from the alternate icons in the asset catalog
+    /// ("AppIcon-<id>", made by iOS/make_icons.swift); the default is the primary icon.
     @MainActor
     static func apply(_ id: String, persist: Bool = true) {
         if persist { UserDefaults.standard.set(id, forKey: key) }
+        #if os(macOS)
         let path = Bundle.main.bundlePath
         if id == defaultID {
             NSApp.applicationIconImage = nil
@@ -180,5 +187,14 @@ enum AppIconManager {
             NSApp.applicationIconImage = img
             NSWorkspace.shared.setIcon(img, forFile: path, options: [])
         }
+        #else
+        let app = UIApplication.shared
+        guard app.supportsAlternateIcons else { return }
+        let name: String? = id == defaultID ? nil : "AppIcon-\(id)"
+        guard app.alternateIconName != name else { return }
+        app.setAlternateIconName(name) { error in
+            if let error { Log.error("Icona alternativa \(name ?? "predefinita"): \(error.localizedDescription)") }
+        }
+        #endif
     }
 }

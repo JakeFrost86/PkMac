@@ -1,5 +1,7 @@
 import Foundation
+#if os(macOS)
 import AppKit
+#endif
 import Observation
 
 /// Three update channels, all from inside the app:
@@ -7,6 +9,8 @@ import Observation
 ///  2. Engine pack     – engine + plugins rebuilt by GitHub Actions (when a plugin or the core API changes)
 ///  3. App             – the whole PkMac.app from GitHub Releases
 /// Every engine change is self-tested before activation; on failure the current version stays.
+/// On iPhone / iPad the engine is compiled into the app (NativeAOT) and the app comes from its installer,
+/// so only the sprite map is refreshed: no core, engine-pack or app updates are offered.
 @MainActor
 @Observable
 final class Updater {
@@ -97,14 +101,21 @@ final class Updater {
     }
 
     private func fetchLatestCore() async -> String? {
+        #if os(iOS)
+        return nil   // PKHeX.Core is compiled into the iOS engine: it can't be hot-swapped
+        #else
         guard let url = URL(string: "https://api.nuget.org/v3-flatcontainer/pkhex.core/index.json"),
               let res = try? await session.data(from: url),
               let obj = try? JSONSerialization.jsonObject(with: res.0) as? [String: Any],
               let versions = obj["versions"] as? [String] else { return nil }
         return versions.filter { !$0.contains("-") }.max { VersionCompare.compare($0, $1) == .orderedAscending }
+        #endif
     }
 
     private func fetchReleases() async -> (Release?, Release?) {
+        #if os(iOS)
+        return (nil, nil)   // the release assets are macOS builds
+        #else
         let repo = self.repo
         guard repo.contains("/"),
               let url = URL(string: "https://api.github.com/repos/\(repo)/releases?per_page=30"),
@@ -125,6 +136,7 @@ final class Updater {
             return candidates.max { VersionCompare.compare($0.version, $1.version) == .orderedAscending }
         }
         return (release(prefix: "engine-", asset: "PkMacEngine-osx-arm64.zip"), release(prefix: "v", asset: "PkMac.zip"))
+        #endif
     }
 
     // MARK: installing
@@ -151,6 +163,10 @@ final class Updater {
     /// Hot-swaps PKHeX.Core.dll from NuGet into a copy of the active engine.
     /// Returns the new manifest when activated.
     func installCore(version: String, savePath: String?) async -> EngineManifest? {
+        #if os(iOS)
+        phase = .failed(L("Su iPhone e iPad PKHeX.Core si aggiorna con l'app."))
+        return nil
+        #else
         do {
             guard let currentDir = EngineManager.activeDirectory() else { throw EngineError(message: L("Motore non trovato.")) }
             let base = EngineManager.activeManifest() ?? EngineManager.bundledManifest() ?? EngineManifest(engine: "1.0.0", core: "?")
@@ -195,6 +211,7 @@ final class Updater {
             phase = .failed(error.localizedDescription)
             return nil
         }
+        #endif
     }
 
     static func bestCoreDLL(in lib: URL) -> URL? {
@@ -214,6 +231,10 @@ final class Updater {
 
     /// Installs a full engine pack (engine + plugins) from GitHub Releases.
     func installEnginePack(_ release: Release, savePath: String?) async -> EngineManifest? {
+        #if os(iOS)
+        phase = .failed(L("Su iPhone e iPad il motore si aggiorna con l'app."))
+        return nil
+        #else
         do {
             let work = try workDir("engine")
             defer { try? FileManager.default.removeItem(at: work) }
@@ -246,10 +267,14 @@ final class Updater {
             phase = .failed(error.localizedDescription)
             return nil
         }
+        #endif
     }
 
     /// Downloads the new app, then a helper script swaps the bundle after PkMac quits and relaunches it.
     func installApp(_ release: Release) async {
+        #if os(iOS)
+        phase = .failed(L("Su iPhone e iPad PkMac si aggiorna da dove l'hai installata."))
+        #else
         do {
             let work = try workDir("app")
             let zip = work.appendingPathComponent("PkMac.zip")
@@ -286,6 +311,7 @@ final class Updater {
         } catch {
             phase = .failed(error.localizedDescription)
         }
+        #endif
     }
 
     /// Refreshes the PokeAPI form→sprite map from the repo (no rebuild needed for new forms).

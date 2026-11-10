@@ -4,28 +4,52 @@ import SwiftUI
 /// by the engine and refused when the Pokémon can't exist there.
 struct TransferView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.pkCompact) private var compact
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Header(title: L("Trasferisci tra salvataggi"),
-                   subtitle: L("Trascina un Pokémon da un gioco all'altro · ⌥ per copiare · i trasferimenti impossibili vengono bloccati"),
-                   symbol: "arrow.left.arrow.right.square.fill", tint: AppSection.transfer.tint)
-            HStack(alignment: .top, spacing: 18) {
-                SavePane(side: "a")
-                Image(systemName: "arrow.left.arrow.right")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(Theme.brand)
-                    .padding(.top, 140)
-                SavePane(side: "b")
+        Group {
+            if compact {
+                // Narrow screens: the two saves one under the other, scrolling together.
+                ScrollView { content.pkPadding(26) }
+            } else {
+                content.pkPadding(26)
             }
         }
-        .padding(26)
         .task(id: model.save?.path) { await model.reloadTransferA() }
+    }
+
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Header(title: L("Trasferisci tra salvataggi"),
+                   subtitle: Platform.isMac
+                       ? L("Trascina un Pokémon da un gioco all'altro · ⌥ per copiare · i trasferimenti impossibili vengono bloccati")
+                       : L("Trascina un Pokémon da un gioco all'altro · i trasferimenti impossibili vengono bloccati"),
+                   symbol: "arrow.left.arrow.right.square.fill", tint: AppSection.transfer.tint)
+            if compact {
+                VStack(spacing: 12) {
+                    SavePane(side: "a")
+                    Image(systemName: "arrow.up.arrow.down")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(Theme.brand)
+                    SavePane(side: "b")
+                }
+            } else {
+                HStack(alignment: .top, spacing: 18) {
+                    SavePane(side: "a")
+                    Image(systemName: "arrow.left.arrow.right")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(Theme.brand)
+                        .padding(.top, 140)
+                    SavePane(side: "b")
+                }
+            }
+        }
     }
 }
 
 private struct SavePane: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.pkCompact) private var compact
     let side: String
 
     private var info: SaveInfo? { side == "a" ? model.save : model.saveB }
@@ -43,7 +67,7 @@ private struct SavePane: View {
                         Text(box.name).font(.system(size: 15, weight: .bold, design: .rounded)).frame(maxWidth: .infinity)
                         Button { Task { await go(boxIndex + 1) } } label: { Image(systemName: "chevron.right") }
                     }
-                    .buttonStyle(.glass)
+                    .buttonStyle(.pkGlass)
                     let columns = info.boxSlotCount <= 20 ? 5 : 6
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 7), count: columns), spacing: 7) {
                         ForEach(box.slots) { s in
@@ -65,7 +89,7 @@ private struct SavePane: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .top)
-        .glassEffect(.regular, in: .rect(cornerRadius: 26))
+        .pkGlassEffect(.regular, in: .rect(cornerRadius: 26))
     }
 
     private func go(_ i: Int) async {
@@ -86,12 +110,12 @@ private struct SavePane: View {
                     Button { model.openSecondPanel() } label: { Label(L("Apri un altro…"), systemImage: "folder") }
                     Button { Task { await model.closeSecond() } } label: { Label(L("Chiudi"), systemImage: "xmark") }
                 } label: { Image(systemName: "ellipsis.circle") }
-                .menuIndicator(.hidden).buttonStyle(.glass)
+                .menuIndicator(.hidden).buttonStyle(.pkGlass)
                 Button { Task { await model.saveSecond() } } label: { Label(L("Salva"), systemImage: "square.and.arrow.down") }
-                    .buttonStyle(.glassProminent).disabled(!info.dirty)
+                    .buttonStyle(.pkGlassProminent).disabled(!info.dirty)
             } else {
                 Button { Task { await model.saveFile() } } label: { Label(L("Salva"), systemImage: "square.and.arrow.down") }
-                    .buttonStyle(.glass).disabled(!info.dirty)
+                    .buttonStyle(.pkGlass).disabled(!info.dirty)
             }
         }
     }
@@ -104,10 +128,10 @@ private struct SavePane: View {
             Text(L("Apri un secondo salvataggio")).font(.system(size: 17, weight: .bold, design: .rounded))
             Text(L("Anche di un'altra generazione o uno zip di Azurii. Puoi trasferire solo i Pokémon che il gioco di destinazione può davvero ricevere."))
                 .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 320)
-            Button { model.openSecondPanel() } label: { Label(L("Scegli il file…"), systemImage: "folder") }
-                .buttonStyle(.glassProminent).controlSize(.large)
+            Button { model.openSecondPanel() } label: { Label(L("Scegli il file…"), systemImage: "folder").fixedSize() }
+                .buttonStyle(.pkGlassProminent).controlSize(.large)
         }
-        .frame(maxWidth: .infinity, minHeight: 420)
+        .frame(maxWidth: .infinity, minHeight: compact ? 260 : 420)
         .dropDestination(for: URL.self) { urls, _ in
             guard let u = urls.first else { return false }
             Task { await model.openSecond(u) }

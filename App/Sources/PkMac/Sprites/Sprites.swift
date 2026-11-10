@@ -1,5 +1,10 @@
 import SwiftUI
+#if os(macOS)
 import AppKit
+#else
+import UIKit
+import ImageIO
+#endif
 
 /// What to draw for a Pokémon.
 struct SpriteKey: Hashable, Sendable {
@@ -260,17 +265,17 @@ actor SpriteStore {
 
         let file = cacheDir.appendingPathComponent(cacheKey.replacingOccurrences(of: "/", with: "_"))
         let task = Task<NSImage?, Never> { [session, base] in
-            if let data = try? Data(contentsOf: file), let img = NSImage(data: data) { return img }
+            if let data = try? Data(contentsOf: file), let img = decodeSprite(data) { return img }
             guard let result = try? await session.data(from: base.appendingPathComponent(path)),
                   (result.1 as? HTTPURLResponse)?.statusCode == 200,
-                  let img = NSImage(data: result.0) else { return nil }
+                  let img = decodeSprite(result.0) else { return nil }
             let data = result.0
             var stored = data
-            if trim, let cut = img.trimmedTransparent(), let png = cut.pngData {
+            if trim, let cut = img.trimmedTransparent(), let png = cut.pngBytes {
                 try? png.write(to: file)
                 return cut
             }
-            if let side = thumbnail, !path.hasSuffix(".gif"), let thumb = img.resized(maxSide: side), let png = thumb.pngData {
+            if let side = thumbnail, !path.hasSuffix(".gif"), let thumb = img.resized(maxSide: side), let png = thumb.pngBytes {
                 stored = png
                 try? stored.write(to: file)
                 return thumb
@@ -297,6 +302,10 @@ actor SpriteStore {
         return files.reduce(0) { $0 + Int64((try? $1.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0) }
     }
 }
+
+#if os(macOS)
+/// Decodes a downloaded sprite (NSImage keeps every GIF frame, NSImageView animates them).
+func decodeSprite(_ data: Data) -> NSImage? { NSImage(data: data) }
 
 extension NSImage {
     func resized(maxSide: CGFloat) -> NSImage? {
@@ -342,7 +351,91 @@ extension NSImage {
         guard let tiff = tiffRepresentation, let rep = NSBitmapImageRep(data: tiff) else { return nil }
         return rep.representation(using: .png, properties: [:])
     }
+
+    /// PNG bytes on both platforms (UIImage already has a `pngData()` method).
+    var pngBytes: Data? { pngData }
 }
+#else
+/// Decodes a downloaded sprite. UIImage(data:) keeps only the first frame of a GIF, so animated GIFs
+/// (Showdown sprites) are rebuilt as an animated UIImage that UIImageView plays on its own.
+func decodeSprite(_ data: Data) -> UIImage? {
+    guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return UIImage(data: data) }
+    let count = CGImageSourceGetCount(source)
+    guard count > 1 else { return UIImage(data: data) }
+    var frames: [UIImage] = []
+    var total: Double = 0
+    for i in 0..<count {
+        guard let cg = CGImageSourceCreateImageAtIndex(source, i, nil) else { continue }
+        frames.append(UIImage(cgImage: cg))
+        var delay = 0.1
+        if let props = CGImageSourceCopyPropertiesAtIndex(source, i, nil) as? [String: Any],
+           let gif = props[kCGImagePropertyGIFDictionary as String] as? [String: Any] {
+            let d = (gif[kCGImagePropertyGIFUnclampedDelayTime as String] as? Double)
+                ?? (gif[kCGImagePropertyGIFDelayTime as String] as? Double) ?? 0.1
+            delay = d < 0.02 ? 0.1 : d
+        }
+        total += delay
+    }
+    guard !frames.isEmpty else { return UIImage(data: data) }
+    return UIImage.animatedImage(with: frames, duration: total)
+}
+
+extension UIImage {
+    private var pixelSize: CGSize {
+        if let cg = cgImage { return CGSize(width: cg.width, height: cg.height) }
+        return CGSize(width: size.width * scale, height: size.height * scale)
+    }
+
+    func resized(maxSide: CGFloat) -> UIImage? {
+        let w = pixelSize.width, h = pixelSize.height
+        guard w > 0, h > 0 else { return nil }
+        let k = min(1, maxSide / max(w, h))
+        let target = CGSize(width: max(1, (w * k).rounded()), height: max(1, (h * k).rounded()))
+        // Plain Core Graphics: safe off the main thread (SpriteStore is an actor).
+        guard let cg = cgImage,
+              let ctx = CGContext(data: nil, width: Int(target.width), height: Int(target.height), bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        ctx.interpolationQuality = .high
+        ctx.draw(cg, in: CGRect(origin: .zero, size: target))
+        guard let out = ctx.makeImage() else { return nil }
+        return UIImage(cgImage: out)
+    }
+
+    /// Crops fully transparent borders (classic sprites have lots of empty padding).
+    func trimmedTransparent() -> UIImage? {
+        guard let cg = cgImage else { return nil }
+        let w = cg.width, h = cg.height
+        guard w > 0, h > 0 else { return nil }
+        var pixels = [UInt8](repeating: 0, count: w * h * 4)
+        let drawn: Bool = pixels.withUnsafeMutableBytes { raw in
+            guard let ctx = CGContext(data: raw.baseAddress, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                                      space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+            ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+            return true
+        }
+        guard drawn else { return nil }
+        // Row 0 of the buffer is the top of the image, like NSBitmapImageRep.colorAt on the Mac.
+        var minX = w, minY = h, maxX = -1, maxY = -1
+        for y in 0..<h {
+            let row = y * w * 4
+            for x in 0..<w where pixels[row + x * 4 + 3] > 5 {   // alpha > 0.02
+                minX = min(minX, x); maxX = max(maxX, x); minY = min(minY, y); maxY = max(maxY, y)
+            }
+        }
+        guard maxX >= minX, maxY >= minY else { return nil }
+        // Keep it square-ish with a 1px margin so sprites keep their proportions in square cells.
+        let cw = maxX - minX + 1, ch = maxY - minY + 1
+        let side = max(cw, ch) + 2
+        let ox = minX - (side - cw) / 2, oy = minY - (side - ch) / 2
+        guard let cropped = cg.cropping(to: CGRect(x: max(0, ox), y: max(0, oy), width: min(side, w - max(0, ox)), height: min(side, h - max(0, oy)))) else { return nil }
+        return UIImage(cgImage: cropped)
+    }
+
+    /// PNG bytes on both platforms.
+    var pngBytes: Data? { pngData() }
+}
+#endif
 
 // MARK: - Views
 
@@ -427,6 +520,7 @@ struct ItemIcon: View {
     }
 }
 
+#if os(macOS)
 /// NSImageView animates GIFs natively.
 struct AnimatedImage: NSViewRepresentable {
     let image: NSImage
@@ -442,6 +536,30 @@ struct AnimatedImage: NSViewRepresentable {
         if v.image !== image { v.image = image }
     }
 }
+#else
+/// UIImageView plays the animated UIImage built by decodeSprite.
+struct AnimatedImage: UIViewRepresentable {
+    let image: UIImage
+    func makeUIView(context: Context) -> UIImageView {
+        let v = UIImageView()
+        v.contentMode = .scaleAspectFit
+        v.clipsToBounds = true
+        v.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        v.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
+        v.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        v.setContentHuggingPriority(.defaultLow, for: .vertical)
+        return v
+    }
+    func updateUIView(_ v: UIImageView, context: Context) {
+        if v.image !== image { v.image = image }
+    }
+    /// Fill the space SwiftUI offers instead of the GIF's own pixel size.
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIImageView, context: Context) -> CGSize? {
+        guard let w = proposal.width, let h = proposal.height, w.isFinite, h.isFinite else { return nil }
+        return CGSize(width: w, height: h)
+    }
+}
+#endif
 
 struct EggView: View {
     var tint: Color

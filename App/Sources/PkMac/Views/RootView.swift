@@ -84,21 +84,31 @@ struct AmbientBackground: View {
             let g = type?.glow ?? Color(hex: 0x3FB6FF)
             let w = Float(sin(t / 7) * 0.12)
             let v = Float(cos(t / 9) * 0.12)
-            MeshGradient(
-                width: 3, height: 3,
-                points: [
-                    [0, 0], [0.5 + w, 0], [1, 0],
-                    [0, 0.5 - v], [0.5 + v, 0.5 + w], [1, 0.5 + v],
-                    [0, 1], [0.5 - w, 1], [1, 1],
-                ],
-                colors: [
-                    c.opacity(0.22), .clear, g.opacity(0.16),
-                    .clear, c.opacity(0.10), .clear,
-                    g.opacity(0.14), .clear, c.opacity(0.18),
-                ]
-            )
-            .background(.background)
-            .animation(.easeInOut(duration: 1.2), value: type)
+            if #available(iOS 18, macOS 15, *) {
+                MeshGradient(
+                    width: 3, height: 3,
+                    points: [
+                        [0, 0], [0.5 + w, 0], [1, 0],
+                        [0, 0.5 - v], [0.5 + v, 0.5 + w], [1, 0.5 + v],
+                        [0, 1], [0.5 - w, 1], [1, 1],
+                    ],
+                    colors: [
+                        c.opacity(0.22), .clear, g.opacity(0.16),
+                        .clear, c.opacity(0.10), .clear,
+                        g.opacity(0.14), .clear, c.opacity(0.18),
+                    ]
+                )
+                .background(.background)
+                .animation(.easeInOut(duration: 1.2), value: type)
+            } else {
+                // iOS 17: two drifting radial glows instead of the mesh.
+                ZStack {
+                    RadialGradient(colors: [c.opacity(0.22), .clear], center: UnitPoint(x: 0.1 + Double(w), y: 0.1), startRadius: 0, endRadius: 520)
+                    RadialGradient(colors: [g.opacity(0.16), .clear], center: UnitPoint(x: 0.9, y: 0.9 - Double(v)), startRadius: 0, endRadius: 560)
+                }
+                .background(.background)
+                .animation(.easeInOut(duration: 1.2), value: type)
+            }
         }
     }
 }
@@ -123,7 +133,7 @@ struct ToastStack: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 11)
                 .frame(maxWidth: 460, alignment: .leading)
-                .glassEffect(.regular, in: .rect(cornerRadius: 16))
+                .pkGlassEffect(.regular, in: .rect(cornerRadius: 16))
                 .transition(.move(edge: .bottom).combined(with: .opacity).combined(with: .scale(scale: 0.9)))
             }
         }
@@ -178,7 +188,7 @@ struct BusyOverlay: View {
             }
             .padding(.horizontal, 36)
             .padding(.vertical, 28)
-            .glassEffect(.regular, in: .rect(cornerRadius: 26))
+            .pkGlassEffect(.regular, in: .rect(cornerRadius: 26))
         }
         .onAppear { spin = true }
     }
@@ -214,16 +224,16 @@ struct EngineFailedView: View {
             Text(message).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 460)
             HStack {
                 Button(L("Riprova")) { Task { await model.startEngine() } }
-                    .buttonStyle(.glassProminent)
+                    .buttonStyle(.pkGlassProminent)
                 Button(L("Usa il motore incluso")) {
                     EngineManager.resetToBundled()
                     Task { await model.startEngine() }
                 }
-                .buttonStyle(.glass)
+                .buttonStyle(.pkGlass)
             }
         }
         .padding(40)
-        .glassEffect(.regular, in: .rect(cornerRadius: 28))
+        .pkGlassEffect(.regular, in: .rect(cornerRadius: 28))
     }
 }
 
@@ -276,6 +286,7 @@ struct ZipChoiceSheet: View {
             HStack { Spacer(); Button(L("Annulla")) { dismiss() }.keyboardShortcut(.cancelAction) }
         }
         .padding(24)
-        .frame(width: 480)
+        .pkSheetScroll()
+        .pkSheetFrame(width: 480)
     }
 }

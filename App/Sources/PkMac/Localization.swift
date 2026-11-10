@@ -1,5 +1,7 @@
 import Foundation
+#if os(macOS)
 import AppKit
+#endif
 
 /// A user-facing text with its interpolated values kept apart, so the template can be translated
 /// (`"Box \(n)"` → key `"Box %@"`).
@@ -105,15 +107,26 @@ enum Lang {
     /// Engine language code for Pokémon/move/item names and legality messages.
     static var engineCode: String { current }
 
+    /// Posted on iPhone / iPad after the language changed in place (the app can't relaunch itself):
+    /// the UI rebuilds its views and the engine gets the new language.
+    static let didChange = Notification.Name("pkmac.languageChanged")
+
     /// Saves the choice and relaunches the app so every screen uses the new language.
+    /// iPhone / iPad: switches in place (new table + `didChange`); system texts follow at the next launch.
     @MainActor static func switchTo(_ choice: String) {
         guard choice != Lang.choice else { return }
         Lang.choice = choice
+        #if os(iOS)
+        table = load()
+        UserDefaults.standard.set([current], forKey: "AppleLanguages")
+        NotificationCenter.default.post(name: didChange, object: current)
+        #else
         let path = Bundle.main.bundlePath
         let task = Process()
         task.launchPath = "/bin/sh"
         task.arguments = ["-c", "sleep 0.7; open -n \"\(path)\""]
         try? task.run()
         NSApp.terminate(nil)
+        #endif
     }
 }

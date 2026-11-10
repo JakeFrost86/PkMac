@@ -2,7 +2,9 @@ import SwiftUI
 
 struct MainView: View {
     @Environment(AppModel.self) private var model
-    @State private var showInspector = !Diag.off("INSPECTOR")
+    @State private var showInspector = Platform.isMac && !Diag.off("INSPECTOR")
+    @Environment(\.pkCompact) private var compact
+    @State private var showDetailSheet = false
 
     var body: some View {
         @Bindable var model = model
@@ -18,6 +20,7 @@ struct MainView: View {
                 // content's (changing) minimum to NSSplitView, which can re-layout in a loop and abort.
                 content
                     .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+                    .modifier(PKWidthReader())
                     .clipped()
                 if !model.searchText.isEmpty {
                     SearchResultsPanel()
@@ -27,7 +30,10 @@ struct MainView: View {
                 }
             }
             .animation(Theme.spring, value: model.searchText.isEmpty)
-            .inspector(isPresented: $showInspector) {
+            #if os(iOS)
+            .toolbar { toolbar }   // iPhone: the detail column carries its own toolbar
+            #endif
+            .inspector(isPresented: inspectorShown) {
                 PokemonInspector()
                     .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
                     .clipped()
@@ -38,12 +44,40 @@ struct MainView: View {
         .onChange(of: model.searchText) { _, _ in
             Task { await model.search() }
         }
+        #if os(macOS)
         .toolbar { toolbar }
+        #endif
         .navigationTitle(model.save?.game ?? "PkMac")
-        .navigationSubtitle(subtitle)
-        .sheet(isPresented: $model.showShowdownImport) { ShowdownImportSheet() }
-        .sheet(isPresented: $model.showCreate) { CreatePokemonSheet() }
-        .sheet(item: $model.pendingLegalize) { p in LegalizePreviewSheet(pending: p) }
+        .pkNavigationSubtitle(subtitle)
+        #if os(macOS)
+        .modifier(ModelSheets(enabled: true))
+        #else
+        // While the details sheet is up, it presents these itself (iOS shows one sheet per presenter).
+        .modifier(ModelSheets(enabled: !showDetailSheet))
+        #endif
+        #if os(iOS)
+        // iPhone / iPad: the details open when a slot is tapped. Narrow screens use a plain sheet
+        // (reliable to dismiss and reopen); wide ones keep the inspector column.
+        .onChange(of: model.inspectRequests) { _, _ in
+            if compact { showDetailSheet = true } else { showInspector = true }
+        }
+        .sheet(isPresented: $showDetailSheet) {
+            PokemonInspector()
+                .modifier(ModelSheets(enabled: true))
+                .environment(model)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
+        #endif
+    }
+
+    /// The inspector column; on iPhone the details live in `showDetailSheet` instead.
+    private var inspectorShown: Binding<Bool> {
+        #if os(iOS)
+        Binding(get: { showInspector && !compact }, set: { showInspector = $0 })
+        #else
+        $showInspector
+        #endif
     }
 
     private var subtitle: String {
@@ -72,6 +106,7 @@ struct MainView: View {
         }
     }
 
+    #if os(macOS)
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .navigation) {
             Button { Task { await model.undo() } } label: { Label(L("Annulla"), systemImage: "arrow.uturn.backward") }
@@ -91,6 +126,58 @@ struct MainView: View {
             .disabled(model.save == nil)
             Button { showInspector.toggle() } label: { Label(L("Dettagli"), systemImage: "sidebar.trailing") }
         }
+    }
+    #else
+    /// iPhone / iPad: fewer buttons in the bar; the rest (open, export, settings, close) in the "…" menu.
+    @ToolbarContentBuilder private var toolbar: some ToolbarContent {
+        ToolbarItemGroup(placement: .topBarTrailing) {
+            Button { Task { await model.undo() } } label: { Label(L("Annulla"), systemImage: "arrow.uturn.backward") }
+                .disabled(model.save?.undo == nil)
+            if !compact {
+                Button { Task { await model.redo() } } label: { Label(L("Ripeti"), systemImage: "arrow.uturn.forward") }
+                    .disabled(model.save?.redo == nil)
+                ChecksumIndicator()
+            }
+            Button { Task { await model.saveFile() } } label: {
+                Label(L("Salva"), systemImage: model.save?.dirty == true ? "square.and.arrow.down.fill" : "square.and.arrow.down")
+            }
+            .disabled(model.save == nil)
+            if !compact {
+                Button { showInspector.toggle() } label: { Label(L("Dettagli"), systemImage: "sidebar.trailing") }
+            }
+            Menu {
+                if compact {
+                    Button { Task { await model.redo() } } label: { Label(L("Ripeti"), systemImage: "arrow.uturn.forward") }
+                        .disabled(model.save?.redo == nil)
+                }
+                Button { model.openPanel() } label: { Label(L("Apri"), systemImage: "folder") }
+                Button { model.saveAsPanel() } label: { Label(L("Esporta come…"), systemImage: "square.and.arrow.up") }
+                Button { model.section = .transfer; model.openSecondPanel() } label: {
+                    Label(L("Apri secondo salvataggio per trasferire…"), systemImage: "arrow.left.arrow.right")
+                }
+                Divider()
+                SettingsButton { Label(L("Impostazioni"), systemImage: "gearshape") }
+                Button(role: .destructive) { model.closeSave() } label: { Label(L("Chiudi salvataggio"), systemImage: "xmark.circle") }
+            } label: {
+                Label(L("Altro"), systemImage: "ellipsis.circle")
+            }
+        }
+    }
+    #endif
+}
+
+/// The model-driven sheets (Showdown import, create Pokémon, legalize preview). `enabled: false` keeps a
+/// presenter from showing them while another one (the iPhone details sheet) is in charge.
+struct ModelSheets: ViewModifier {
+    @Environment(AppModel.self) private var model
+    var enabled: Bool
+
+    func body(content: Content) -> some View {
+        @Bindable var model = model
+        content
+            .sheet(isPresented: enabled ? $model.showShowdownImport : .constant(false)) { ShowdownImportSheet() }
+            .sheet(isPresented: enabled ? $model.showCreate : .constant(false)) { CreatePokemonSheet() }
+            .sheet(item: enabled ? $model.pendingLegalize : .constant(nil)) { p in LegalizePreviewSheet(pending: p) }
     }
 }
 
@@ -119,7 +206,7 @@ struct ChecksumIndicator: View {
                 }
             }
             .padding(16)
-            .frame(width: 320)
+            .pkPopoverFrame(width: 320)
         }
     }
 }
@@ -159,6 +246,6 @@ struct SearchResultsPanel: View {
             }
         }
         .padding(14)
-        .glassEffect(.regular, in: .rect(cornerRadius: 20))
+        .pkGlassEffect(.regular, in: .rect(cornerRadius: 20))
     }
 }

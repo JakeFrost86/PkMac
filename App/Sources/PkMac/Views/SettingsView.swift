@@ -1,7 +1,12 @@
 import SwiftUI
 
 struct SettingsView: View {
+    #if os(iOS)
+    @State private var autoPage = IOSSettingsPage(rawValue: ProcessInfo.processInfo.environment["PKMAC_SETTINGS"] ?? "")
+    #endif
+
     var body: some View {
+        #if os(macOS)
         TabView {
             UpdatesSettings()
                 .tabItem { Label(L("Aggiornamenti"), systemImage: "arrow.triangle.2.circlepath") }
@@ -17,8 +22,54 @@ struct SettingsView: View {
                 .tabItem { Label(L("Info"), systemImage: "info.circle") }
         }
         .frame(width: 640, height: 640)
+        #else
+        // iPhone / iPad: a list of pages (the engine is part of the app, so there are no updates to install).
+        List {
+            ForEach(IOSSettingsPage.allCases) { p in
+                NavigationLink(value: p) { Label(p.title, systemImage: p.icon) }
+            }
+        }
+        .navigationDestination(for: IOSSettingsPage.self) { $0.view }
+        // PKMAC_SETTINGS=<page>: opens a page directly (screenshot runs).
+        .navigationDestination(item: $autoPage) { $0.view }
+        .navigationTitle(L("Impostazioni"))
+        #endif
     }
 }
+
+#if os(iOS)
+private enum IOSSettingsPage: String, CaseIterable, Identifiable, Hashable {
+    case appearance, naming, general, backup, about
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .appearance: L("Aspetto")
+        case .naming: L("Nomi file")
+        case .general: L("Generale")
+        case .backup: L("Backup")
+        case .about: L("Info")
+        }
+    }
+    var icon: String {
+        switch self {
+        case .appearance: "paintpalette"
+        case .naming: "textformat"
+        case .general: "gearshape"
+        case .backup: "clock.arrow.circlepath"
+        case .about: "info.circle"
+        }
+    }
+    @MainActor @ViewBuilder var view: some View {
+        switch self {
+        case .appearance: AppearanceSettings().navigationTitle(title)
+        case .naming: NamingSettings().navigationTitle(title)
+        case .general: GeneralSettings().navigationTitle(title)
+        case .backup: BackupSettings().navigationTitle(title)
+        case .about: AboutSettings().navigationTitle(title)
+        }
+    }
+}
+#endif
 
 private struct UpdatesSettings: View {
     @Environment(AppModel.self) private var model
@@ -52,7 +103,7 @@ private struct UpdatesSettings: View {
                     } label: {
                         if u.phase == .checking { ProgressView().controlSize(.small) } else { Label(L("Controlla ora"), systemImage: "arrow.clockwise") }
                     }
-                    .buttonStyle(.glass)
+                    .buttonStyle(.pkGlass)
                 }
             }
 
@@ -108,7 +159,7 @@ private struct VersionRow: View {
             }
             Spacer()
             if available, let latest {
-                Button(L("Installa \(latest)"), action: install).buttonStyle(.glassProminent)
+                Button(L("Installa \(latest)"), action: install).buttonStyle(.pkGlassProminent)
             } else if latest != nil {
                 StatusBadge(kind: .ok, text: L("Aggiornato"))
             }
@@ -190,7 +241,7 @@ private struct AppearanceSettings: View {
                         .buttonStyle(.plain)
                     }
                 }
-                Text(L("Cambia subito l'icona nel Dock e nel Finder.")).font(.caption).foregroundStyle(.secondary)
+                Text(Platform.isMac ? L("Cambia subito l'icona nel Dock e nel Finder.") : L("Cambia l'icona nella schermata Home.")).font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
@@ -198,27 +249,30 @@ private struct AppearanceSettings: View {
 }
 
 private struct GeneralSettings: View {
+    @Environment(AppModel.self) private var model
     @State private var cache: Int64 = 0
 
     var body: some View {
         Form {
             SwiftUI.Section(L("Lingua")) {
                 Picker(L("Lingua dell'app"), selection: Binding(get: { Lang.choice }, set: { Lang.switchTo($0) })) {
-                    Text(L("Automatica (lingua di macOS)")).tag("system")
+                    Text(Platform.isMac ? L("Automatica (lingua di macOS)") : L("Automatica (lingua del sistema)")).tag("system")
                     Text("Italiano").tag("it")
                     Text("English").tag("en")
                 }
-                Text(L("Vale anche per i nomi di Pokémon, mosse e strumenti e per i messaggi di legalità. Cambiando lingua PkMac si riavvia.")).font(.caption).foregroundStyle(.secondary)
+                Text(Platform.isMac ? L("Vale anche per i nomi di Pokémon, mosse e strumenti e per i messaggi di legalità. Cambiando lingua PkMac si riavvia.")
+                                    : L("Vale anche per i nomi di Pokémon, mosse e strumenti e per i messaggi di legalità.")).font(.caption).foregroundStyle(.secondary)
             }
             SwiftUI.Section(L("Sprite (PokeAPI)")) {
                 LabeledContent(L("Cache su disco"), value: ByteCountFormatter.string(fromByteCount: cache, countStyle: .file))
                 Button(L("Svuota la cache degli sprite")) {
                     Task { await SpriteStore.shared.clearCache(); cache = await SpriteStore.shared.cacheSize() }
                 }
-                Text(L("Gli sprite di github.com/PokeAPI/sprites vengono scaricati la prima volta e poi restano sul Mac.")).font(.caption).foregroundStyle(.secondary)
+                Text(Platform.isMac ? L("Gli sprite di github.com/PokeAPI/sprites vengono scaricati la prima volta e poi restano sul Mac.")
+                                    : L("Gli sprite di github.com/PokeAPI/sprites vengono scaricati la prima volta e poi restano sul dispositivo.")).font(.caption).foregroundStyle(.secondary)
             }
             SwiftUI.Section(L("Cartelle")) {
-                Button(L("Apri la cartella di PkMac")) { NSWorkspace.shared.open(AppPaths.support) }
+                Button(Platform.isMac ? L("Apri la cartella di PkMac") : L("Apri PkMac nell'app File")) { model.openFolder(AppPaths.support) }
             }
         }
         .formStyle(.grouped)
@@ -232,7 +286,8 @@ private struct AboutSettings: View {
             VStack(spacing: 14) {
                 AnimatedLogo(width: 150, showText: false)
                 Text("PkMac \(Updater.appVersion)").font(.system(size: 22, weight: .heavy, design: .rounded)).foregroundStyle(Theme.brand)
-                Text(L("Editor di salvataggi Pokémon per macOS, basato su PKHeX.Core.")).foregroundStyle(.secondary)
+                Text(Platform.isMac ? L("Editor di salvataggi Pokémon per macOS, basato su PKHeX.Core.")
+                                    : L("Editor di salvataggi Pokémon per iPhone e iPad, basato su PKHeX.Core.")).foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 6) {
                     credit("PKHeX.Core", L("Kaphotics (kwsch) e collaboratori · GPLv3"))
                     credit("Auto Legality Mod, LiveHeX", L("architdate, kwsch, santacrab2 · PKHeX-Plugins"))
@@ -291,7 +346,7 @@ private struct BackupSettings: View {
 
             SwiftUI.Section {
                 if let stats {
-                    LabeledContent(L("Backup sul Mac"), value: L("\(stats.count) file di \(stats.saves) salvataggi"))
+                    LabeledContent(Platform.isMac ? L("Backup sul Mac") : L("Backup sul dispositivo"), value: L("\(stats.count) file di \(stats.saves) salvataggi"))
                     LabeledContent(L("Spazio occupato"), value: ByteCountFormatter.string(fromByteCount: stats.size, countStyle: .file))
                     if let o = stats.oldest, let d = ISO8601DateFormatter.flexible.date(from: o) {
                         LabeledContent(L("Il più vecchio"), value: d.formatted(date: .abbreviated, time: .shortened))
@@ -303,8 +358,10 @@ private struct BackupSettings: View {
                     Button { Task { if let r = await model.pruneBackups() { stats = r.1; message = L("Eliminati \(r.0) backup in più.") } } } label: {
                         Label(L("Pulisci ora"), systemImage: "wand.and.sparkles")
                     }
-                    Button { if let s = stats { NSWorkspace.shared.open(URL(fileURLWithPath: s.root)) } } label: {
-                        Label(L("Apri cartella"), systemImage: "folder")
+                    if Platform.isMac {
+                        Button { if let s = stats { model.openFolder(URL(fileURLWithPath: s.root)) } } label: {
+                            Label(L("Apri cartella"), systemImage: "folder")
+                        }
                     }
                     Spacer()
                     Button(role: .destructive) { confirmDelete = true } label: {

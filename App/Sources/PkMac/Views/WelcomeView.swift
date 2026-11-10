@@ -28,34 +28,36 @@ struct WelcomeView: View {
                 .opacity(appear ? 1 : 0)
 
             VStack(spacing: 8) {
-                Text(L("L'editor di salvataggi Pokémon, nato per il Mac."))
+                Text(Platform.isMac ? L("L'editor di salvataggi Pokémon, nato per il Mac.") : L("L'editor di salvataggi Pokémon, ora anche su iPhone e iPad."))
                     .font(.system(size: 17, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
             }
             .opacity(appear ? 1 : 0)
             .offset(y: appear ? 0 : 12)
 
-            GlassEffectContainer(spacing: 14) {
+            PKGlassContainer(spacing: 14) {
                 HStack(spacing: 14) {
                     Button {
                         model.openPanel()
                     } label: {
                         Label(L("Apri salvataggio"), systemImage: "folder.fill")
+                            .labelStyle(.titleAndIcon)
                             .font(.system(size: 15, weight: .semibold, design: .rounded))
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
                     }
-                    .buttonStyle(.glassProminent)
+                    .buttonStyle(.pkGlassProminent)
                     .keyboardShortcut("o")
                     .disabled(model.engineState != .ready)
 
-                    SettingsLink {
+                    SettingsButton {
                         Label(L("Impostazioni"), systemImage: "gearshape.fill")
+                            .labelStyle(.titleAndIcon)
                             .font(.system(size: 15, weight: .medium, design: .rounded))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 6)
                     }
-                    .buttonStyle(.glass)
+                    .buttonStyle(.pkGlass)
                 }
             }
 
@@ -127,7 +129,7 @@ private struct RecentRow: View {
             }
             .padding(10)
             .contentShape(.rect)
-            .glassEffect(hover ? .regular.interactive() : .clear, in: .rect(cornerRadius: 14))
+            .pkGlassEffect(hover ? .interactive : .clear, in: .rect(cornerRadius: 14))
         }
         .buttonStyle(.plain)
         .onHover { hover = $0 }
@@ -225,7 +227,7 @@ struct Spark: Shape {
 /// Language switch on the first screen: Automatic (macOS language), Italiano, English.
 struct LanguageMenu: View {
     private let options: [(id: String, title: String)] = [
-        ("system", L("Automatica (lingua di macOS)")), ("it", "Italiano"), ("en", "English"),
+        ("system", Platform.isMac ? L("Automatica (lingua di macOS)") : L("Automatica (lingua del sistema)")), ("it", "Italiano"), ("en", "English"),
     ]
 
     var body: some View {
@@ -237,15 +239,17 @@ struct LanguageMenu: View {
                     if Lang.choice == o.id { Label(o.title, systemImage: "checkmark") } else { Text(o.title) }
                 }
             }
-            Divider()
-            Text(L("Cambiando lingua PkMac si riavvia."))
+            if Platform.isMac {
+                Divider()
+                Text(L("Cambiando lingua PkMac si riavvia."))
+            }
         } label: {
             Label(Lang.current == "it" ? "Italiano" : "English", systemImage: "globe")
                 .font(.system(size: 13, weight: .medium, design: .rounded))
         }
         .menuIndicator(.hidden)
         .fixedSize()
-        .buttonStyle(.glass)
+        .buttonStyle(.pkGlass)
         .help(L("Lingua dell'app"))
     }
 }

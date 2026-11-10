@@ -50,21 +50,57 @@ struct ShowdownImportSheet: View {
                 .frame(maxHeight: 140)
             }
 
-            HStack {
-                Button(L("Incolla dagli appunti")) { text = NSPasteboard.general.string(forType: .string) ?? text }
-                    .buttonStyle(.glass)
-                Spacer()
-                Button(L("Chiudi")) { dismiss() }.keyboardShortcut(.cancelAction)
-                Button {
-                    Task { results = await model.importShowdown(text) }
-                } label: { Label(L("Genera"), systemImage: "wand.and.stars") }
-                .buttonStyle(.glassProminent)
-                .keyboardShortcut(.defaultAction)
-                .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
+            buttonRow
         }
         .padding(22)
-        .frame(width: 560)
+        .pkSheetFrame(width: 560)
+    }
+
+    private var pasteButton: some View {
+        Button(L("Incolla dagli appunti")) { text = NSPasteboard.general.string(forType: .string) ?? text }
+            .buttonStyle(.pkGlass)
+    }
+
+    private var closeButton: some View {
+        Button(L("Chiudi")) { dismiss() }.keyboardShortcut(.cancelAction)
+    }
+
+    private var generateButton: some View {
+        Button {
+            Task { results = await model.importShowdown(text) }
+        } label: { Label(L("Genera"), systemImage: "wand.and.stars") }
+        .buttonStyle(.pkGlassProminent)
+        .keyboardShortcut(.defaultAction)
+        .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    }
+
+    @ViewBuilder private var buttonRow: some View {
+        #if os(macOS)
+        HStack {
+            pasteButton
+            Spacer()
+            closeButton
+            generateButton
+        }
+        #else
+        // Narrow screens: "paste" on its own line.
+        ViewThatFits(in: .horizontal) {
+            HStack {
+                pasteButton
+                Spacer()
+                closeButton
+                generateButton
+            }
+            VStack(alignment: .leading, spacing: 10) {
+                pasteButton
+                HStack {
+                    Spacer()
+                    closeButton
+                    generateButton
+                }
+            }
+        }
+        #endif
     }
 
     private func label(_ r: ImportResult) -> String {
@@ -100,7 +136,109 @@ struct CreatePokemonSheet: View {
     }
 
     var body: some View {
+        layout
+            .task(id: species?.v) {
+                guard let s = species else { return }
+                info = await model.speciesInfo(s.v, form: 0)
+            }
+    }
+
+    @ViewBuilder private var layout: some View {
+        #if os(macOS)
         HStack(spacing: 0) {
+            speciesGrid
+                .frame(width: 420)
+                .background(.primary.opacity(0.03))
+            detailPane(withButtons: true)
+                .padding(20)
+                .frame(width: 320)
+        }
+        .frame(height: 560)
+        #else
+        // iPhone / iPad: the sheet fills the screen; Cancel / Create live in the navigation bar.
+        NavigationStack {
+            GeometryReader { g in
+                if g.size.width >= 640 {
+                    HStack(spacing: 0) {
+                        speciesGrid
+                            .frame(maxWidth: .infinity)
+                            .background(.primary.opacity(0.03))
+                        detailPane(withButtons: false)
+                            .padding(20)
+                            .frame(width: 320)
+                    }
+                } else {
+                    VStack(spacing: 0) {
+                        compactHeader
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                        Divider()
+                        speciesGrid
+                    }
+                }
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(L("Annulla")) { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(L("Crea legale")) { create() }
+                        .fontWeight(.semibold)
+                        .disabled(species == nil || target == nil)
+                }
+            }
+        }
+        #endif
+    }
+
+    private func create() {
+        guard let s = species, let target else { return }
+        dismiss()
+        Task { await model.createPokemon(species: s.v, form: form, shiny: shiny, at: target) }
+    }
+
+    #if os(iOS)
+    /// Narrow screens: a small preview with the options above the species grid.
+    private var compactHeader: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let s = species {
+                let t = PokeType(key: info?.types.first)
+                HStack(alignment: .center, spacing: 12) {
+                    ZStack {
+                        Circle().fill(RadialGradient(colors: [t.glow.opacity(0.7), .clear], center: .center, startRadius: 3, endRadius: 48))
+                        if shiny { SparkleField().frame(width: 90, height: 80) }
+                        PokemonSprite(key: SpriteKey(species: s.v, formKey: formKey, shiny: shiny, female: false, egg: false, form: form), style: .artwork, tint: t.color)
+                            .frame(width: 76, height: 76)
+                    }
+                    .frame(width: 90, height: 90)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(s.t).font(.system(size: 19, weight: .heavy, design: .rounded)).lineLimit(1).minimumScaleFactor(0.7)
+                        HStack { ForEach(info?.types ?? [], id: \.self) { TypePill(type: PokeType(key: $0)) } }
+                        if let forms = info?.forms, forms.count > 1 {
+                            Picker(L("Forma"), selection: $form) {
+                                ForEach(Array(forms.enumerated()), id: \.offset) { i, f in Text(f.isEmpty ? L("Normale") : f).tag(i) }
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                        }
+                        Toggle(isOn: $shiny) { Label(L("Cromatico"), systemImage: "sparkles") }.toggleStyle(.switch)
+                    }
+                }
+                if info?.inGame == false {
+                    StatusBadge(kind: .warn, text: L("Non presente in questo gioco"))
+                }
+            } else {
+                Text(L("Scegli una specie")).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, minHeight: 60)
+            }
+            Text(target.map { L("Verrà creato in \($0.label)") } ?? L("Nessuno slot libero nel box")).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+    #endif
+
+    private var speciesGrid: some View {
             VStack(spacing: 0) {
                 TextField(L("Cerca per nome o numero"), text: $query)
                     .textFieldStyle(.roundedBorder)
@@ -124,9 +262,9 @@ struct CreatePokemonSheet: View {
                     .padding(10)
                 }
             }
-            .frame(width: 420)
-            .background(.primary.opacity(0.03))
+    }
 
+    private func detailPane(withButtons: Bool) -> some View {
             VStack(spacing: 14) {
                 if let s = species {
                     let t = PokeType(key: info?.types.first)
@@ -155,26 +293,16 @@ struct CreatePokemonSheet: View {
                 }
                 Spacer()
                 Text(target.map { L("Verrà creato in \($0.label)") } ?? L("Nessuno slot libero nel box")).font(.caption).foregroundStyle(.secondary)
-                HStack {
-                    Button(L("Annulla")) { dismiss() }.keyboardShortcut(.cancelAction)
-                    Button {
-                        guard let s = species, let target else { return }
-                        dismiss()
-                        Task { await model.createPokemon(species: s.v, form: form, shiny: shiny, at: target) }
-                    } label: { Label(L("Crea legale"), systemImage: "wand.and.stars") }
-                    .buttonStyle(.glassProminent)
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(species == nil || target == nil)
+                if withButtons {
+                    HStack {
+                        Button(L("Annulla")) { dismiss() }.keyboardShortcut(.cancelAction)
+                        Button { create() } label: { Label(L("Crea legale"), systemImage: "wand.and.stars") }
+                            .buttonStyle(.pkGlassProminent)
+                            .keyboardShortcut(.defaultAction)
+                            .disabled(species == nil || target == nil)
+                    }
                 }
             }
-            .padding(20)
-            .frame(width: 320)
-        }
-        .frame(height: 560)
-        .task(id: species?.v) {
-            guard let s = species else { return }
-            info = await model.speciesInfo(s.v, form: 0)
-        }
     }
 
     private var formKey: String {
@@ -186,6 +314,7 @@ struct CreatePokemonSheet: View {
 /// Animated checklist shown after every save: what was verified, where the backup went.
 struct SaveReportView: View {
     let result: SaveResult
+    @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var shown = 0
     @State private var sealed = false
@@ -221,19 +350,27 @@ struct SaveReportView: View {
             }
             HStack {
                 if let b = result.backup {
-                    Button { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: b)]) } label: {
+                    Button {
+                        #if os(macOS)
+                        model.reveal(URL(fileURLWithPath: b))
+                        #else
+                        dismiss()   // one sheet at a time on iOS
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { model.reveal(URL(fileURLWithPath: b)) }
+                        #endif
+                    } label: {
                         Label(L("Mostra backup"), systemImage: "clock.arrow.circlepath")
                     }
-                    .buttonStyle(.glass)
+                    .buttonStyle(.pkGlass)
                 }
                 Spacer()
                 Button(L("Fatto")) { dismiss() }
-                    .buttonStyle(.glassProminent)
+                    .buttonStyle(.pkGlassProminent)
                     .keyboardShortcut(.defaultAction)
             }
         }
-        .padding(26)
-        .frame(width: 460)
+        .pkPadding(26)
+        .pkSheetScroll()
+        .pkSheetFrame(width: 460)
         .task {
             for i in 1...max(1, result.steps.count) {
                 try? await Task.sleep(for: .milliseconds(220))

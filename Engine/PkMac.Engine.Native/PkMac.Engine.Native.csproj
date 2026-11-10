@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The PkMac engine for iOS/iPadOS: the same sources as PkMac.Engine (PKHeX.Core and the integrated
+    plugins), compiled ahead of time with NativeAOT into a dynamic library that the app loads in its own
+    process (iOS can't start a separate engine process). The app talks to it through C functions
+    exchanging the same JSON lines as the macOS engine: pkmac_call / pkmac_free / pkmac_set_event_callback.
+    Built by iOS/build_engine.sh (dotnet publish -r ios-arm64 or iossimulator-arm64).
+  -->
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <AssemblyName>PkMacEngine</AssemblyName>
+    <RootNamespace>PkMac.Engine</RootNamespace>
+    <Version>$(PkMacEngineVersion)</Version>
+    <DefineConstants>$(DefineConstants);PKMAC_NATIVE</DefineConstants>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PublishAot>true</PublishAot>
+    <PublishAotUsingRuntimePack>true</PublishAotUsingRuntimePack>
+    <NativeLib>Shared</NativeLib>
+    <SelfContained>true</SelfContained>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <UseSystemResourceKeys>false</UseSystemResourceKeys>
+    <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+    <IlcGenerateStackTraceData>true</IlcGenerateStackTraceData>
+    <!-- PKHeX and our editors use reflection (inspector, Pokédex, events): keep all their metadata. -->
+    <TrimMode>partial</TrimMode>
+    <NoWarn>$(NoWarn);IL2026;IL2046;IL2057;IL2060;IL2062;IL2065;IL2067;IL2070;IL2072;IL2075;IL2080;IL2087;IL2090;IL2104;IL2111;IL3050;IL3053</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Vendor>$(MSBuildThisFileDirectory)../../vendor/</Vendor>
+    <EngineDir>$(MSBuildThisFileDirectory)../PkMac.Engine/</EngineDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="$(EngineDir)**/*.cs" Exclude="$(EngineDir)obj/**;$(EngineDir)bin/**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <TrimmerRootAssembly Include="PkMacEngine" />
+    <TrimmerRootAssembly Include="PKHeX.Core" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="PKHeX.Core" Version="$(PKHeXCoreVersion)" />
+    <ProjectReference Include="$(Vendor)PKHeX-Plugins/PKHeX.Core.AutoMod/PKHeX.Core.AutoMod.csproj" />
+    <ProjectReference Include="$(Vendor)PKHeX-Plugins/PKHeX.Core.Injection/PKHeX.Core.Injection.csproj" />
+    <ProjectReference Include="$(Vendor)PKHeX-Plugins/PKHeX.Core.Enhancements/PKHeX.Core.Enhancements.csproj" />
+    <ProjectReference Include="$(Vendor)PokeFilename/PokeFilename.API/PokeFilename.API.csproj" />
+    <ProjectReference Include="$(Vendor)HOME-Live-Plugin/HomeLive.Core/HomeLive.Core.csproj" />
+    <ProjectReference Include="../PkMac.Plugins.Sorting/PkMac.Plugins.Sorting.csproj" />
+    <Reference Include="SysBot.Base">
+      <HintPath>$(Vendor)HOME-Live-Plugin/HomeLive.DeviceExecutor/deps/SysBot.Base.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>

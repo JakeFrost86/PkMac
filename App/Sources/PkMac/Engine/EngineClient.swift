@@ -1,5 +1,9 @@
 import Foundation
 
+// macOS: the engine is a separate .NET process. iOS/iPadOS uses the in-process framework
+// (iOS/PkMacIOS/EngineLibrary.swift), with the same EngineClient / EngineError API.
+#if os(macOS)
+
 struct EngineError: LocalizedError {
     let message: String
     var errorDescription: String? { message }
@@ -151,5 +155,4 @@ final class EngineClient: @unchecked Sendable {
         for (_, c) in all { c.resume(throwing: error) }
     }
 }
-
-
+#endif

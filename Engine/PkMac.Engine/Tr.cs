@@ -19,7 +19,13 @@ public static class Tr
         Language = lang;
         _table = new();
         if (lang == "it" || path is null || !File.Exists(path)) return;
-        try { _table = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(path)) ?? new(); }
+        try
+        {
+            // JsonNode instead of the generic deserializer: also works in the ahead-of-time iOS build.
+            if (System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path)) is System.Text.Json.Nodes.JsonObject o)
+                foreach (var (k, v) in o)
+                    if (v is not null) _table[k] = v.GetValue<string>();
+        }
         catch (Exception e) { Program.Log($"lang: {e.Message}"); }
     }
 

@@ -1,3 +1,5 @@
+// The macOS app. iPhone / iPad have their own entry point in iOS/.
+#if os(macOS)
 import SwiftUI
 import AppKit
 
@@ -171,3 +173,4 @@ struct PkMacCommands: Commands {
         }
     }
 }
+#endif

@@ -105,6 +105,27 @@ public static class FeatureTest
         foreach (var (g, s) in sessions)
         {
             var sav = s.Sav;
+            // The iOS (ahead-of-time) build serializes with JsonOut: it must match System.Text.Json exactly.
+            T(g, "json-ios", () =>
+            {
+                var samples = new List<object>();
+                foreach (var make in new Func<object>[] { () => SaveIO.Info(s), () => Storage.Box(s, 0), () => Bag.Get(s), () => TrainerInfo.Get(s), () => Gifts.Album(s) })
+                {
+                    try { samples.Add(make()); } catch { /* blank-save limits: not a JSON problem */ }
+                }
+                for (int i = 0; i < Math.Min(sav.SlotCount, 60); i++)
+                    if (sav.GetBoxSlotAtIndex(i).Species != 0) { samples.Add(Describe.Detail(s, new SlotRef(false, i / sav.BoxSlotCount, i % sav.BoxSlotCount), sav.GetBoxSlotAtIndex(i))); break; }
+                int n = 0;
+                foreach (var o in samples)
+                {
+                    var a = JsonSerializer.SerializeToNode(o, o.GetType(), Program.Json);
+                    var b = JsonOut.ToNode(o);
+                    if (!JsonNode.DeepEquals(a, b))
+                        throw new Exception($"differenza in {o.GetType().Name}: {a?.ToJsonString()[..Math.Min(160, a.ToJsonString().Length)]} ≠ {b?.ToJsonString()[..Math.Min(160, b.ToJsonString().Length)]}");
+                    n++;
+                }
+                return $"{n} risposte identiche";
+            });
             T(g, "trainer", () =>
             {
                 var t = ToNode(TrainerInfo.Get(s));

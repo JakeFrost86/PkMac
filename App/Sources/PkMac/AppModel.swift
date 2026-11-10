@@ -133,6 +133,15 @@ final class AppModel {
     var zipChoice: OpenChoice?
     var recentFiles: [String] = UserDefaults.standard.stringArray(forKey: "recentFiles") ?? []
 
+    // Dialogs, pickers and exports presented by RootView on iPhone / iPad (see Platform/Presenter.swift)
+    var dialog: DialogRequest?
+    var filePick: FilePickRequest?
+    var showFilePicker = false
+    var exportRequest: ExportRequest?
+    var showSettings = false
+    /// Bumped every time a slot is tapped: on iPhone it (re)opens the Pokémon sheet.
+    var inspectRequests = 0
+
     // Second save (transfers)
     var saveB: SaveInfo?
     var boxB: BoxData?
@@ -155,7 +164,9 @@ final class AppModel {
     func startEngine() async {
         engineState = .starting
         engine?.stop()
-        guard let exe = EngineManager.executable(), FileManager.default.isExecutableFile(atPath: exe.path) else {
+        // macOS: a separate executable; iOS: the framework's library, loaded in-process (no exec bit needed).
+        guard let exe = EngineManager.executable(),
+              Platform.isMac ? FileManager.default.isExecutableFile(atPath: exe.path) : FileManager.default.fileExists(atPath: exe.path) else {
             engineState = .failed(L("Motore PKHeX non trovato nel pacchetto dell'app."))
             return
         }
@@ -188,6 +199,18 @@ final class AppModel {
                 return
             }
             engineState = .failed(error.localizedDescription)
+        }
+    }
+
+    /// Sends the current language to the running engine and reloads the translated lists
+    /// (iOS switches language without relaunching).
+    func applyLanguage() async {
+        var langParams: [String: Any] = ["lang": Lang.engineCode]
+        if let table = Bundle.main.url(forResource: Lang.engineCode, withExtension: "json", subdirectory: "Lang") { langParams["table"] = table.path }
+        _ = try? await send("setLanguage", langParams)
+        if save != nil {
+            lists = try? await call("lists")
+            try? await reloadAll()
         }
     }
 
@@ -237,32 +260,25 @@ final class AppModel {
     // MARK: - Save files
 
     func openPanel() {
-        let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        panel.message = L("Scegli un salvataggio Pokémon (main, .sav, .dsv, .dat, .gci, .bin…) o uno zip di Azurii")
-        panel.prompt = L("Apri")
-        if panel.runModal() == .OK, let url = panel.url {
-            Task { await open(url) }
+        Task {
+            if let url = await pickFile(message: L("Scegli un salvataggio Pokémon (main, .sav, .dsv, .dat, .gci, .bin…) o uno zip di Azurii")) {
+                await open(url)
+            }
         }
     }
 
     func open(_ url: URL, remember: Bool = true, entry: String? = nil) async {
         if save?.dirty == true, save?.path != url.path {
-            let alert = NSAlert()
-            alert.messageText = L("Ci sono modifiche non salvate")
-            alert.informativeText = L("Vuoi salvarle prima di aprire un altro file?")
-            alert.addButton(withTitle: L("Salva"))
-            alert.addButton(withTitle: L("Non salvare"))
-            alert.addButton(withTitle: L("Annulla"))
-            switch alert.runModal() {
-            case .alertFirstButtonReturn: await saveFile()
-            case .alertThirdButtonReturn: return
+            switch await ask(L("Ci sono modifiche non salvate"), L("Vuoi salvarle prima di aprire un altro file?"),
+                             buttons: [L("Salva"), L("Non salvare"), L("Annulla")]) {
+            case 0: await saveFile()
+            case 2: return
             default: break
             }
         }
         await perform(url.pathExtension.lowercased() == "zip" ? L("Leggo lo zip di Azurii…") : L("Apro il salvataggio…")) {
-            var params: [String: Any] = ["path": url.path]
+            let target = try FileBridge.prepare(url)
+            var params: [String: Any] = ["path": target.path]
             if let entry { params["entry"] = entry }
             let raw = try await send("open", params)
             if let choice = try? JSONDecoder().decode(OpenChoice.self, from: raw), choice.needsChoice {
@@ -318,6 +334,7 @@ final class AppModel {
             var params: [String: Any] = ["backup": true]
             if let url { params["path"] = url.path }
             let result: SaveResult = try await call("save", params)
+            if url == nil { try FileBridge.writeBack(result.path) }
             lastSave = result
             withAnimation(Theme.spring) { showSaveReport = true }
             try await refreshInfo()
@@ -326,12 +343,26 @@ final class AppModel {
     }
 
     func saveAsPanel() {
+        #if os(macOS)
         let panel = NSSavePanel()
         panel.nameFieldStringValue = save?.fileName ?? "main"
         panel.message = L("Esporta il salvataggio verificato")
         if panel.runModal() == .OK, let url = panel.url {
             Task { await saveFile(as: url) }
         }
+        #else
+        // iOS: write a verified copy to a temporary folder, then offer it to Files / AirDrop.
+        Task {
+            guard let dir = await exportFolder(prompt: ""), let name = save?.fileName else { return }
+            let url = dir.appendingPathComponent(name)
+            var ok = false
+            await perform(L("Verifico i checksum e salvo…")) {
+                let _: SaveResult = try await call("save", ["backup": false, "path": url.path])
+                ok = true
+            }
+            if ok { finishExport([url]) }
+        }
+        #endif
     }
 
     func closeSave() {
@@ -424,7 +455,7 @@ final class AppModel {
             try await send("delete", ["ref": ref.json])
             if selection == ref { detail = nil }
             await afterMutation()
-            toast(.info, L("Pokémon rilasciato"), L("Puoi annullare con ⌘Z."))
+            toast(.info, L("Pokémon rilasciato"), Platform.isMac ? L("Puoi annullare con ⌘Z.") : L("Puoi annullare con il tasto Annulla."))
         } catch {
             toast(.error, L("Eliminazione non riuscita"), error.localizedDescription)
         }
@@ -469,34 +500,28 @@ final class AppModel {
     // MARK: - Files
 
     func exportPk(_ ref: SlotRef) {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = true
-        panel.prompt = L("Esporta qui")
-        guard panel.runModal() == .OK, let dir = panel.url else { return }
         Task {
+            guard let dir = await exportFolder(prompt: L("Esporta qui")) else { return }
             await perform(nil) {
                 let data = try await send("exportPk", ["ref": ref.json, "dir": dir.path])
                 let path = (try? JSONDecoder().decode(String.self, from: data)) ?? dir.path
                 toast(.success, L("Pokémon esportato"), URL(fileURLWithPath: path).lastPathComponent)
-                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+                finishExport([URL(fileURLWithPath: path)])
             }
         }
     }
 
     func exportBox() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = true
-        panel.prompt = L("Esporta box")
-        guard panel.runModal() == .OK, let dir = panel.url else { return }
         Task {
+            guard let dir = await exportFolder(prompt: L("Esporta box")) else { return }
             await perform(L("Esporto il box…")) {
                 let paths: [String] = try await call("exportBox", ["box": currentBox, "dir": dir.path])
                 toast(.success, L("\(paths.count) Pokémon esportati"))
-                NSWorkspace.shared.open(dir)
+                #if os(macOS)
+                finishExport([], folder: dir)
+                #else
+                finishExport(paths.map { URL(fileURLWithPath: $0) })
+                #endif
             }
         }
     }
@@ -630,7 +655,7 @@ final class AppModel {
         await perform(L("Ordino i box…")) {
             _ = try await send("sort", ["id": id, "startBox": startBox, "endBox": endBox, "checkForms": checkForms, "extra": extra])
             await afterMutation()
-            toast(.success, L("Box ordinati"), L("Puoi annullare con ⌘Z."))
+            toast(.success, L("Box ordinati"), Platform.isMac ? L("Puoi annullare con ⌘Z.") : L("Puoi annullare con il tasto Annulla."))
         }
     }
 
@@ -662,6 +687,7 @@ final class AppModel {
     func restore(_ item: BackupItem) async {
         await perform(L("Ripristino il backup…")) {
             save = try await call("restoreBackup", ["backup": item.path])
+            try FileBridge.writeBack(save?.path)
             try await reloadAll()
             toast(.success, L("Backup ripristinato"), L("Il file attuale è stato a sua volta salvato in un backup."))
         }
@@ -722,7 +748,7 @@ final class AppModel {
         await perform(L("Backup di HOME in corso…")) {
             let r: HomeDumpResult = try await call("homeDump", ["dir": dir.path, "fromBox": from, "toBox": to, "format": format])
             toast(.success, L("\(r.files) Pokémon salvati"), r.dir)
-            NSWorkspace.shared.open(dir)
+            finishExport([], folder: URL(fileURLWithPath: r.dir))
         }
     }
 
@@ -776,12 +802,8 @@ final class AppModel {
 
     private func ensureSavedBeforeRestart() async -> Bool {
         guard save?.dirty == true else { return true }
-        let alert = NSAlert()
-        alert.messageText = L("Salvare prima di aggiornare?")
-        alert.informativeText = L("Il motore verrà riavviato e il salvataggio riaperto dal disco.")
-        alert.addButton(withTitle: L("Salva e continua"))
-        alert.addButton(withTitle: L("Annulla"))
-        guard alert.runModal() == .alertFirstButtonReturn else { return false }
+        guard await ask(L("Salvare prima di aggiornare?"), L("Il motore verrà riavviato e il salvataggio riaperto dal disco."),
+                        buttons: [L("Salva e continua"), L("Annulla")]) == 0 else { return false }
         await saveFile()
         return save?.dirty != true
     }

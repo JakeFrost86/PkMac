@@ -15,7 +15,7 @@ struct PartyView: View {
                     }
                 }
             }
-            .padding(26)
+            .pkPadding(26)
         }
     }
 }
@@ -81,6 +81,7 @@ private struct PartyCard: View {
         .onTapGesture {
             if slot.empty { model.selection = slot.ref; model.detail = nil }
             else { Task { await model.select(slot.ref) } }
+            model.inspectRequests += 1
         }
         .contextMenu { SlotMenu(slot: slot) }
         .onDrop(of: [.pkmacSlot], isTargeted: $targeted) { providers in
@@ -112,7 +113,7 @@ struct Header: View {
                 .font(.system(size: 20, weight: .bold))
                 .foregroundStyle(.white)
                 .frame(width: 46, height: 46)
-                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(LinearGradient(colors: [tint.mix(with: .white, by: 0.25), tint], startPoint: .top, endPoint: .bottom)))
+                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(LinearGradient(colors: [tint.pkMix(with: .white, by: 0.25), tint], startPoint: .top, endPoint: .bottom)))
                 .shadow(color: tint.opacity(0.4), radius: 8, y: 4)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.system(size: 26, weight: .bold, design: .rounded))
@@ -169,13 +170,13 @@ struct OverviewView: View {
                         } label: {
                             Label(L("Mostra i \(d.illegal) Pokémon non legali"), systemImage: "magnifyingglass")
                         }
-                        .buttonStyle(.glass)
+                        .buttonStyle(.pkGlass)
                     }
                 } else {
                     ProgressView().frame(maxWidth: .infinity, minHeight: 200)
                 }
             }
-            .padding(26)
+            .pkPadding(26)
         }
         .task(id: model.save?.dirty) { data = await model.overview() }
     }
@@ -216,7 +217,7 @@ private struct RingTile: View {
                 Circle().stroke(tint.opacity(0.15), lineWidth: 9)
                 Circle()
                     .trim(from: 0, to: appear ? CGFloat(value) / CGFloat(max(1, total)) : 0)
-                    .stroke(AngularGradient(colors: [tint.mix(with: .white, by: 0.3), tint], center: .center), style: StrokeStyle(lineWidth: 9, lineCap: .round))
+                    .stroke(AngularGradient(colors: [tint.pkMix(with: .white, by: 0.3), tint], center: .center), style: StrokeStyle(lineWidth: 9, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                 Text("\(Int(Double(value) / Double(max(1, total)) * 100))%").font(.system(size: 13, weight: .bold, design: .rounded))
             }
@@ -284,7 +285,7 @@ actor TrainerArtStore {
         guard let (data, resp) = try? await URLSession.shared.data(from: TrainerArt.url(name)),
               (resp as? HTTPURLResponse)?.statusCode == 200, let img = NSImage(data: data) else { return nil }
         let out = img.trimmedTransparent() ?? img
-        if let png = out.pngData { try? png.write(to: file) }
+        if let png = out.pngBytes { try? png.write(to: file) }
         memory[name] = out
         return out
     }
@@ -317,6 +318,7 @@ struct TrainerSprite: View {
 
 struct TrainerView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.pkCompact) private var compact
     @State private var t: TrainerData?
     @State private var name = ""
     @State private var money = ""
@@ -337,31 +339,50 @@ struct TrainerView: View {
                 if let t {
                     TrainerCard(t: t, previewName: name, previewGender: gender)
                         .frame(maxWidth: 620)
-                    HStack(alignment: .top, spacing: 16) {
+                    PKAdaptiveStack(spacing: 16) {
                         identity(t)
                         progress(t)
                     }
                     .frame(maxWidth: 900)
-                    HStack {
-                        Button {
-                            model.section = .advanced
-                        } label: { Label(L("Tutti gli altri campi del salvataggio…"), systemImage: "slider.horizontal.below.square.and.square.filled") }
-                        .buttonStyle(.glass)
-                        Spacer()
-                        Button(L("Ripristina")) { load(t) }.buttonStyle(.glass)
-                        Button { Task { await apply(t) } } label: { Label(L("Applica modifiche"), systemImage: "checkmark") }
-                            .buttonStyle(.glassProminent)
-                            .keyboardShortcut(.return, modifiers: .command)
+                    if compact {
+                        // Narrow screens: the link to the other fields on its own line.
+                        VStack(alignment: .leading, spacing: 10) {
+                            otherFieldsButton
+                            HStack {
+                                Spacer()
+                                actionButtons(t)
+                            }
+                        }
+                    } else {
+                        HStack {
+                            otherFieldsButton
+                            Spacer()
+                            actionButtons(t)
+                        }
+                        .frame(maxWidth: 900)
                     }
-                    .frame(maxWidth: 900)
                 }
             }
-            .padding(26)
+            .pkPadding(26)
         }
         .task(id: model.save?.path) {
             t = await model.trainer()
             if let t { load(t) }
         }
+    }
+
+    private var otherFieldsButton: some View {
+        Button {
+            model.section = .advanced
+        } label: { Label(L("Tutti gli altri campi del salvataggio…"), systemImage: "slider.horizontal.below.square.and.square.filled") }
+        .buttonStyle(.pkGlass)
+    }
+
+    @ViewBuilder private func actionButtons(_ t: TrainerData) -> some View {
+        Button(L("Ripristina")) { load(t) }.buttonStyle(.pkGlass)
+        Button { Task { await apply(t) } } label: { Label(L("Applica modifiche"), systemImage: "checkmark") }
+            .buttonStyle(.pkGlassProminent)
+            .keyboardShortcut(.return, modifiers: .command)
     }
 
     private func load(_ t: TrainerData) {
@@ -370,10 +391,19 @@ struct TrainerView: View {
         language = t.language; badges = t.badges?.value ?? 0; stamps = t.stamps?.value ?? 0
     }
 
-    private func row<C: View>(_ label: String, @ViewBuilder _ c: () -> C) -> some View {
-        HStack {
-            Text(label).foregroundStyle(.secondary).frame(width: 110, alignment: .leading)
-            c()
+    /// Label beside the field; on narrow screens the label goes above it.
+    @ViewBuilder private func row<C: View>(_ label: String, @ViewBuilder _ c: () -> C) -> some View {
+        if compact {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(label).font(.callout).foregroundStyle(.secondary)
+                HStack { c() }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            HStack {
+                Text(label).foregroundStyle(.secondary).frame(width: 110, alignment: .leading)
+                c()
+            }
         }
     }
 
@@ -417,17 +447,28 @@ struct TrainerView: View {
         }
     }
 
+    @ViewBuilder private func playTimeSteppers(_ t: TrainerData) -> some View {
+        Stepper(value: $hours, in: 0...(t.maxHours ?? 999)) { Text("\(hours) h").monospacedDigit().frame(width: 52, alignment: .trailing) }
+        Stepper(value: $minutes, in: 0...59) { Text("\(minutes) m").monospacedDigit().frame(width: 40, alignment: .trailing) }
+        Stepper(value: $seconds, in: 0...59) { Text("\(seconds) s").monospacedDigit().frame(width: 36, alignment: .trailing) }
+    }
+
     private func progress(_ t: TrainerData) -> some View {
         Card(title: L("Progressi"), symbol: "clock.fill", tint: .orange) {
             VStack(spacing: 12) {
                 row(L("Soldi")) {
                     TextField(L("Soldi"), text: $money).textFieldStyle(.roundedBorder).monospacedDigit()
-                    Button(L("Max")) { money = "\(t.maxMoney)" }.buttonStyle(.glass).controlSize(.small)
+                    Button(L("Max")) { money = "\(t.maxMoney)" }.buttonStyle(.pkGlass).controlSize(.small)
                 }
                 row(L("Tempo di gioco")) {
-                    Stepper(value: $hours, in: 0...(t.maxHours ?? 999)) { Text("\(hours) h").monospacedDigit().frame(width: 52, alignment: .trailing) }
-                    Stepper(value: $minutes, in: 0...59) { Text("\(minutes) m").monospacedDigit().frame(width: 40, alignment: .trailing) }
-                    Stepper(value: $seconds, in: 0...59) { Text("\(seconds) s").monospacedDigit().frame(width: 36, alignment: .trailing) }
+                    if compact {
+                        // Three steppers side by side don't fit a phone: one per line.
+                        VStack(alignment: .leading, spacing: 6) {
+                            playTimeSteppers(t)
+                        }
+                    } else {
+                        playTimeSteppers(t)
+                    }
                 }
                 if let b = t.badges {
                     row(L("Medaglie")) {
@@ -456,7 +497,7 @@ struct TrainerView: View {
                         }
                         Spacer(minLength: 6)
                         if b.readOnly != true {
-                            Button(L("Tutte")) { badges = (1 << b.count) - 1 }.buttonStyle(.glass).controlSize(.small)
+                            Button(L("Tutte")) { badges = (1 << b.count) - 1 }.buttonStyle(.pkGlass).controlSize(.small)
                         }
                     }
                     if b.readOnly == true {
@@ -473,7 +514,7 @@ struct TrainerView: View {
                     row("Pokédex") {
                         Text(L("\(seen) visti · \(caught) catturati")).foregroundStyle(.secondary)
                         Spacer()
-                        Button(L("Apri")) { model.section = .pokedex }.buttonStyle(.glass).controlSize(.small)
+                        Button(L("Apri")) { model.section = .pokedex }.buttonStyle(.pkGlass).controlSize(.small)
                     }
                 }
             }
@@ -502,6 +543,7 @@ private struct TrainerCard: View {
     var previewName: String
     var previewGender: Int
     @State private var tilt = false
+    @Environment(\.pkCompact) private var compact
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -512,27 +554,27 @@ private struct TrainerCard: View {
             HStack(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: 16) {
                     Text(L("TRAINER CARD")).font(.system(size: 11, weight: .heavy, design: .rounded)).tracking(2).opacity(0.8)
-                    Text(previewName.isEmpty ? t.ot : previewName).font(.system(size: 34, weight: .heavy, design: .rounded)).lineLimit(1)
-                    HStack(spacing: 28) {
+                    Text(previewName.isEmpty ? t.ot : previewName).font(.system(size: compact ? 26 : 34, weight: .heavy, design: .rounded)).lineLimit(1)
+                    HStack(spacing: compact ? 16 : 28) {
                         field("ID", "\(t.tid)")
                         field(L("Gioco"), t.game)
                     }
-                    HStack(spacing: 28) {
+                    HStack(spacing: compact ? 16 : 28) {
                         field(L("Soldi"), "₽ \(t.money.formatted())")
                         field(L("Tempo di gioco"), "\(t.hours)h \(t.minutes)m")
                     }
                 }
                 Spacer(minLength: 0)
                 TrainerSprite(versionKey: t.versionKey, gender: previewGender)
-                    .frame(width: 170, height: 200)
+                    .frame(width: compact ? 104 : 170, height: compact ? 130 : 200)
                     .id(previewGender)
                     .transition(.scale.combined(with: .opacity))
             }
             .foregroundStyle(.white)
-            .padding(26)
+            .pkPadding(26)
             .animation(Theme.spring, value: previewGender)
         }
-        .frame(height: 250)
+        .frame(height: compact ? 220 : 250)
         .clipShape(.rect(cornerRadius: 26, style: .continuous))
         .shadow(color: Color(hex: 0x3F7BFF).opacity(0.35), radius: 20, y: 12)
         .rotation3DEffect(.degrees(tilt ? 2.5 : -2.5), axis: (x: 0.4, y: 1, z: 0))
@@ -543,7 +585,9 @@ private struct TrainerCard: View {
     private func field(_ k: String, _ v: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(k.uppercased()).font(.system(size: 9.5, weight: .bold, design: .rounded)).tracking(1).opacity(0.75)
-            Text(v).font(.system(size: 16, weight: .bold, design: .rounded))
+            Text(v).font(.system(size: compact ? 14 : 16, weight: .bold, design: .rounded))
+                .lineLimit(compact ? 1 : nil)
+                .minimumScaleFactor(compact ? 0.7 : 1)
         }
     }
 }
