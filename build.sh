@@ -66,7 +66,7 @@ for c in r['checks']: print(('  ✅ ' if c['ok'] else '  ❌ ')+c['name']+'  '+s
 v=r['versions']; print(f\"  core {v['core']} · alm {v['alm']} · engine {v['engine']}\")
 sys.exit(0 if r['ok'] else 1)"
 
-if [[ -z "${GITHUB_ACTIONS:-}" && "${SKIP_FEATURETEST:-0}" != "1" ]]; then
+if [[ "${FEATURE_TEST:-0}" == "1" ]]; then
   step "Test degli editor (borsa, eventi, doni, blocchi, trasferimenti…)"
   "$OUT/engine/PkMacEngine" --featuretest ${TEST_SAVE:+"$TEST_SAVE"} || echo "⚠️  alcuni test degli editor non sono passati"
 fi

@@ -21,10 +21,27 @@ public static class FeatureTest
     {
         var results = new List<string>();
         int failures = 0;
+        void Log(string line) { results.Add(line); Console.WriteLine(line); Console.Out.Flush(); }
         void T(string game, string name, Func<string?> f)
         {
-            try { var d = f(); results.Add($"  ✅ {game,-6} {name,-10} {d}"); }
-            catch (Exception e) { failures++; results.Add($"  ❌ {game,-6} {name,-10} {e.GetType().Name}: {e.Message.Split('\n')[0]}"); }
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var task = Task.Run(f);
+            try
+            {
+                if (!task.Wait(TimeSpan.FromSeconds(45)))
+                {
+                    failures++;
+                    Log($"  ❌ {game,-6} {name,-10} TIMEOUT (>45s, bloccato)");
+                    return;
+                }
+                Log($"  ✅ {game,-6} {name,-10} {task.Result} [{sw.ElapsedMilliseconds} ms]");
+            }
+            catch (AggregateException ae)
+            {
+                var e = ae.InnerException ?? ae;
+                failures++;
+                Log($"  ❌ {game,-6} {name,-10} {e.GetType().Name}: {e.Message.Split('\n')[0]}");
+            }
         }
 
         var versions = new[]
@@ -38,7 +55,7 @@ public static class FeatureTest
         {
             SaveFile sav;
             try { sav = BlankSaveFile.Get(v); }
-            catch (Exception e) { results.Add($"  ⚪️ {v,-6} blank non disponibile: {e.Message}"); continue; }
+            catch (Exception e) { Log($"  ⚪️ {v,-6} blank non disponibile: {e.Message}"); continue; }
             var s = new Session();
             s.SetLanguage("it");
             s.Load(sav, $"/tmp/{v}.sav");
@@ -197,8 +214,9 @@ public static class FeatureTest
             });
         }
 
-        foreach (var r in results) Console.WriteLine(r);
         Console.WriteLine(failures == 0 ? "FEATURETEST OK" : $"FEATURETEST: {failures} errori");
-        return failures == 0 ? 0 : 1;
+        Console.Out.Flush();
+        Environment.Exit(failures == 0 ? 0 : 1); // stuck worker threads must not keep the process alive
+        return 0;
     }
 }
