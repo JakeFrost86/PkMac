@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Compiles the platform-independent part of foohyfooh's PluginPile "Sorting" plugin
+    (regional Pokédex tables) without its WinForms UI. Sources come from vendor/.
+  -->
+  <PropertyGroup>
+    <RootNamespace>PluginPile.Sorting</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>$(NoWarn);CS8618;CS8602;CS8600</NoWarn>
+  </PropertyGroup>
+  <PropertyGroup>
+    <PileDir>$(MSBuildThisFileDirectory)../../vendor/PKHeXPluginPile/PluginPile.Sorting/</PileDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(PileDir)Gen*.cs" />
+    <Compile Include="$(PileDir)SortingBase.cs" />
+    <Compile Include="$(PileDir)PositionForms.cs" />
+    <Compile Include="*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="PKHeX.Core" Version="$(PKHeXCoreVersion)" />
+  </ItemGroup>
+</Project>

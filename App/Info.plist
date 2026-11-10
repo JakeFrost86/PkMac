@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>PkMac</string>
+	<key>CFBundleDisplayName</key>
+	<string>PkMac</string>
+	<key>CFBundleIdentifier</key>
+	<string>io.github.pkmac</string>
+	<key>CFBundleExecutable</key>
+	<string>PkMac</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>__APP_VERSION__</string>
+	<key>CFBundleVersion</key>
+	<string>__BUILD_NUMBER__</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>it</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>26.0</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.utilities</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>GPLv3 · basato su PKHeX.Core di Kaphotics</string>
+	<key>PkMacUpdateRepo</key>
+	<string>__UPDATE_REPO__</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>PkMac si collega alla tua console (sys-botbase / NTR) per LiveHeX e HOME Live.</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Salvataggio Pokémon</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>sav</string>
+				<string>dsv</string>
+				<string>gci</string>
+				<string>srm</string>
+				<string>fla</string>
+				<string>zip</string>
+				<string>pk1</string><string>pk2</string><string>pk3</string><string>pk4</string><string>pk5</string>
+				<string>pk6</string><string>pk7</string><string>pk8</string><string>pk9</string>
+				<string>pb7</string><string>pb8</string><string>pa8</string><string>pa9</string>
+			</array>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.data</string>
+			</array>
+		</dict>
+	</array>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>io.github.pkmac.slot</string>
+			<key>UTTypeDescription</key>
+			<string>Slot PkMac</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

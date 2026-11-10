@@ -1,0 +1,12 @@
+build/
+vendor/
+App/.build/
+App/.swiftpm/
+Engine/**/bin/
+Engine/**/obj/
+.DS_Store
+*.user
+.sync/
+test/
+*.log
+PkMac-src.tar.gz

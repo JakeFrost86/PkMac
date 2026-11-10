@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>14</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Overridden by build.sh / CI with the version in versions.json -->
+    <PKHeXCoreVersion Condition="'$(PKHeXCoreVersion)' == ''">26.10.18</PKHeXCoreVersion>
+    <PkMacEngineVersion Condition="'$(PkMacEngineVersion)' == ''">1.0.0</PkMacEngineVersion>
+    <NoWarn>$(NoWarn);NU1608;NU1603;CS1591</NoWarn>
+  </PropertyGroup>
+</Project>

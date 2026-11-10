@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>PkMacEngine</AssemblyName>
+    <RootNamespace>PkMac.Engine</RootNamespace>
+    <Version>$(PkMacEngineVersion)</Version>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <SatelliteResourceLanguages>en;it</SatelliteResourceLanguages>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <TieredPGO>true</TieredPGO>
+    <!-- PKHeX relies on reflection: never trim. -->
+    <PublishTrimmed>false</PublishTrimmed>
+    <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Vendor>$(MSBuildThisFileDirectory)../../vendor/</Vendor>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="PKHeX.Core" Version="$(PKHeXCoreVersion)" />
+    <ProjectReference Include="$(Vendor)PKHeX-Plugins/PKHeX.Core.AutoMod/PKHeX.Core.AutoMod.csproj" />
+    <ProjectReference Include="$(Vendor)PKHeX-Plugins/PKHeX.Core.Injection/PKHeX.Core.Injection.csproj" />
+    <ProjectReference Include="$(Vendor)PKHeX-Plugins/PKHeX.Core.Enhancements/PKHeX.Core.Enhancements.csproj" />
+    <ProjectReference Include="$(Vendor)PokeFilename/PokeFilename.API/PokeFilename.API.csproj" />
+    <ProjectReference Include="$(Vendor)HOME-Live-Plugin/HomeLive.Core/HomeLive.Core.csproj" />
+    <ProjectReference Include="../PkMac.Plugins.Sorting/PkMac.Plugins.Sorting.csproj" />
+    <!-- SysBot.Base ships as a binary inside HOME-Live-Plugin -->
+    <Reference Include="SysBot.Base">
+      <HintPath>$(Vendor)HOME-Live-Plugin/HomeLive.DeviceExecutor/deps/SysBot.Base.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,88 @@
+# Every day: if a new PKHeX.Core is on NuGet (or the plugins changed), rebuild the engine pack,
+# self-test it and publish it as an "engine-*" release. PkMac installs it from Settings › Updates
+# (or hot-swaps just the core DLL on its own) — no new app build needed.
+name: Watch PKHeX.Core
+
+on:
+  schedule:
+    - cron: '17 5 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Rebuild even if nothing changed'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  engine:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Check NuGet and plugins
+        id: check
+        run: |
+          LATEST=$(curl -s https://api.nuget.org/v3-flatcontainer/pkhex.core/index.json | python3 -c "import json,sys;v=[x for x in json.load(sys.stdin)['versions'] if '-' not in x];print(sorted(v,key=lambda s:[int(p) for p in s.split('.')])[-1])")
+          CURRENT=$(python3 -c "import json;print(json.load(open('versions.json'))['pkhexCore'])")
+          scripts/fetch-vendor.sh --latest
+          CHANGED=$(python3 - <<'PY'
+          import json,subprocess
+          v=json.load(open('versions.json'))
+          changed=False
+          for name,info in v['vendor'].items():
+              sha=subprocess.run(['git','-C',f'vendor/{name}','rev-parse','HEAD'],capture_output=True,text=True).stdout.strip()
+              if sha!=info['ref']: changed=True
+          print('true' if changed else 'false')
+          PY
+          )
+          echo "latest=$LATEST" >> $GITHUB_OUTPUT
+          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+          if [[ "$LATEST" != "$CURRENT" || "$CHANGED" == "true" || "${{ inputs.force }}" == "true" ]]; then
+            echo "build=true" >> $GITHUB_OUTPUT
+          else
+            echo "build=false" >> $GITHUB_OUTPUT
+          fi
+          echo "PKHeX.Core: current $CURRENT, latest $LATEST, plugins changed: $CHANGED"
+
+      - name: Build and self-test engine
+        if: steps.check.outputs.build == 'true'
+        id: build
+        run: |
+          BASE=$(python3 -c "import json;v=json.load(open('versions.json'))['engine'].split('.');print(v[0]+'.'+v[1])")
+          ENGINE_VERSION="$BASE.$(date +%y%m%d)"
+          echo "engine=$ENGINE_VERSION" >> $GITHUB_OUTPUT
+          SKIP_VENDOR=1 PKHEX_CORE=${{ steps.check.outputs.latest }} ENGINE_VERSION=$ENGINE_VERSION ./build.sh --engine-only
+
+      - name: Pin versions
+        if: steps.check.outputs.build == 'true'
+        run: |
+          python3 - <<'PY'
+          import json,subprocess
+          v=json.load(open('versions.json'))
+          v['pkhexCore']='${{ steps.check.outputs.latest }}'
+          for name in v['vendor']:
+              v['vendor'][name]['ref']=subprocess.run(['git','-C',f'vendor/{name}','rev-parse','HEAD'],capture_output=True,text=True).stdout.strip()
+          json.dump(v,open('versions.json','w'),indent=2)
+          PY
+          git config user.name "pkmac-bot"
+          git config user.email "pkmac-bot@users.noreply.github.com"
+          git add versions.json
+          git commit -m "Engine ${{ steps.build.outputs.engine }} · PKHeX.Core ${{ steps.check.outputs.latest }}" || true
+          git push || true
+
+      - name: Publish engine pack
+        if: steps.check.outputs.build == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: engine-${{ steps.build.outputs.engine }}
+          name: Motore ${{ steps.build.outputs.engine }} · PKHeX.Core ${{ steps.check.outputs.latest }}
+          body: |
+            Pacchetto motore per PkMac, con PKHeX.Core ${{ steps.check.outputs.latest }} e i plugin aggiornati.
+            Si installa da PkMac › Impostazioni › Aggiornamenti.
+          files: build/PkMacEngine-osx-arm64.zip

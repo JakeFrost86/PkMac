@@ -1,0 +1,23 @@
+{
+  "app": "1.0.0",
+  "engine": "1.0.0",
+  "pkhexCore": "26.10.18",
+  "vendor": {
+    "PKHeX-Plugins": {
+      "repo": "https://github.com/santacrab2/PKHeX-Plugins.git",
+      "ref": "b96d7c5a3a8286bf51b1ebaff649ba0a2dfd88a2"
+    },
+    "PokeFilename": {
+      "repo": "https://github.com/architdate/PokeFilename.git",
+      "ref": "3f73d99b67afffdb16f9510f8be682374fadee02"
+    },
+    "PKHeXPluginPile": {
+      "repo": "https://github.com/foohyfooh/PKHeXPluginPile.git",
+      "ref": "8b354105c545a6d7d6f391488e3e24b9a67a2624"
+    },
+    "HOME-Live-Plugin": {
+      "repo": "https://github.com/Manu098vm/HOME-Live-Plugin.git",
+      "ref": "f331cbcdd43cd8eef458ea9ebfe036a304871d18"
+    }
+  }
+}
