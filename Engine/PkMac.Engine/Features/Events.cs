@@ -190,16 +190,16 @@ public static class Events
         s.Snapshot("Eventi di gioco");
         foreach (var (key, count, apply) in new (string, int, Action<int, System.Text.Json.Nodes.JsonNode>)[]
         {
-            ("flags", st.FlagCount, (i, n) => st.SetFlag(i, n.GetValue<bool>())),
-            ("system", st.SystemCount, (i, n) => st.SetSystem(i, n.GetValue<bool>())),
-            ("work", st.WorkCount, (i, n) => st.SetWork(i, (int)Math.Clamp(n.GetValue<long>(), st.WorkMax == int.MaxValue ? int.MinValue : 0, st.WorkMax))),
+            ("flags", st.FlagCount, (i, n) => st.SetFlag(i, n.ToJsonString() == "true")),
+            ("system", st.SystemCount, (i, n) => st.SetSystem(i, n.ToJsonString() == "true")),
+            ("work", st.WorkCount, (i, n) => st.SetWork(i, (int)Math.Clamp(long.Parse(n.ToJsonString().Trim('"'), System.Globalization.CultureInfo.InvariantCulture), st.WorkMax == int.MaxValue ? int.MinValue : 0, st.WorkMax))),
         })
         {
             if (p.Raw[key] is not System.Text.Json.Nodes.JsonArray list) continue;
             foreach (var entry in list)
             {
                 if (entry is not System.Text.Json.Nodes.JsonArray pair || pair.Count < 2) continue;
-                var i = pair[0]!.GetValue<int>();
+                var i = int.Parse(pair[0]!.ToJsonString());
                 if ((uint)i >= count) continue;
                 apply(i, pair[1]!);
             }

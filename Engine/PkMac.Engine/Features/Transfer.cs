@@ -23,9 +23,13 @@ public static class Transfer
         _ => r.ToString(),
     };
 
+    /// <summary>Last step reached by <see cref="Prepare"/> (diagnostics for the feature test).</summary>
+    public static volatile string LastStage = "";
+
     /// <summary>Converts the entity for <paramref name="to"/> or explains why it can't go there.</summary>
     public static (PKM? pk, string? problem) Prepare(Session from, SlotRef r, Session to)
     {
+        LastStage = "get";
         var src = from.Get(r);
         if (src.Species == 0)
             return (null, "Lo slot di partenza è vuoto.");
@@ -38,28 +42,54 @@ public static class Transfer
         }
         else
         {
-            var converted = EntityConverter.ConvertToType(src, dest.PKMType, out var res);
+            // Games only move Pokémon forward (plus Gen 1↔2 and the Switch games through HOME).
+            byte g1 = src.Format, g2 = dest.Generation;
+            bool route = g2 >= g1 || (g1 <= 2 && g2 <= 2) || (g1 >= 8 && g2 >= 8);
+            if (!route)
+                return (null, $"Non trasferibile: nei giochi non si può riportare un Pokémon dalla generazione {g1} alla {g2}.");
+            LastStage = "convert";
+            EntityConverterResult res = EntityConverterResult.None;
+            var job = Task.Run(() => { var c = EntityConverter.ConvertToType(src, dest.PKMType, out var r0); res = r0; return c; });
+            if (!job.Wait(TimeSpan.FromSeconds(10)))
+                return (null, "Non trasferibile: la conversione non è riuscita.");
+            var converted = job.Result;
             if (converted is null || res is not (EntityConverterResult.Success or EntityConverterResult.None))
                 return (null, $"Non trasferibile: {Explain(res)}.");
             pk = converted;
         }
 
+        // Pokémon moved between Switch-era games travel through HOME, which stamps a tracker.
+        LastStage = "tracker";
+        HomeTracker(pk, src.Context, dest.Context);
+
         if (!dest.Personal.IsPresentInGame(pk.Species, pk.Form))
             return (null, $"Non trasferibile: {Describe.Name(to.Strings.Species, pk.Species)} non è presente in {GameInfo.GetVersionName(dest.Version)}.");
 
+        // Same treatment the game gives on arrival: handler/trade memories for the receiving trainer.
+        dest.AdaptToSaveFile(pk, isParty: false);
+        LastStage = "compat";
         var errata = dest.EvaluateCompatibility(pk, to.Language);
         if (errata.Count > 0)
             return (null, "Non compatibile con il gioco di destinazione:\n" + string.Join("\n", errata));
 
         // A legal Pokémon must stay legal once it lands in the other game.
+        LastStage = "legal-src";
         bool wasLegal = SafeValid(src);
+        LastStage = "legal-dest";
         if (wasLegal && !SafeValid(pk))
         {
             var la = new LegalityAnalysis(pk);
             var first = la.Report(to.Language).Split('\n').FirstOrDefault(l => l.Trim().Length > 0) ?? "";
             return (null, $"Non trasferibile: in {GameInfo.GetVersionName(dest.Version)} diventerebbe non legale.\n{first}");
         }
+        LastStage = "done";
         return (pk, null);
+    }
+
+    public static void HomeTracker(PKM pk, EntityContext from, EntityContext to)
+    {
+        if (from != to && pk is IHomeTrack h && h.Tracker == 0)
+            h.Tracker = (ulong)Random.Shared.NextInt64(1, long.MaxValue);
     }
 
     private static bool SafeValid(PKM pk)
