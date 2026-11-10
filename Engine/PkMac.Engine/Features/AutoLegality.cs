@@ -80,10 +80,23 @@ public static class AutoLegality
         if (pk.Species == 0) throw new EngineException("Lo slot è vuoto.");
         var before = new LegalityAnalysis(pk).Valid;
         PKM result;
-        try { result = s.Sav.Legalize(pk); }
-        catch (MissingMethodException) { throw new EngineException("Auto Legality non è compatibile con questa versione del core. Aggiorna il pacchetto motore dalle impostazioni."); }
-        result.Heal();
+        // 1) PKHeX's own suggestions (moves, relearn moves, met data) — the same fixes PKHeX offers.
+        result = Encounters.ApplySuggestions(pk.Clone());
         var after = new LegalityAnalysis(result).Valid;
+        // 2) Auto Legality Mod regeneration.
+        if (!after)
+        {
+            try { using (new EnglishScope()) result = s.Sav.Legalize(pk); }
+            catch (MissingMethodException) { throw new EngineException("Auto Legality non è compatibile con questa versione del core. Aggiorna il pacchetto motore dalle impostazioni."); }
+            result.Heal();
+            after = new LegalityAnalysis(result).Valid;
+        }
+        // 3) Rebuild from a legal encounter of the same species/form, keeping nickname, nature, IVs/EVs when possible.
+        if (!after && Encounters.CreateLegal(s.Sav, pk.Species, pk.Form, pk.IsShiny, keep: pk) is { } rebuilt)
+        {
+            result = rebuilt;
+            after = true;
+        }
         if (after)
             s.Set(r, result, settings: default(EntityImportSettings), label: "Legalizza");
         return new { before, after, applied = after, detail = Describe.Detail(s, r, s.Get(r)) };
@@ -92,7 +105,8 @@ public static class AutoLegality
     public static object LegalizeBox(Session s, int box)
     {
         s.Snapshot("Legalizza box");
-        var fixedCount = s.Sav.LegalizeBox(box);
+        int fixedCount;
+        using (new EnglishScope()) fixedCount = s.Sav.LegalizeBox(box);
         s.Dirty = true;
         return new { fixedCount };
     }
@@ -109,12 +123,14 @@ public static class AutoLegality
                 throw new EngineException("Impossibile leggere il link (supportati: pokepast.es, pastebin).");
             text = paste.Sets;
         }
-        IEnumerable<ShowdownSet> sets;
-        if (ShowdownUtil.IsTeamBackup(text))
-            sets = ShowdownTeamSet.GetTeams(text).SelectMany(t => t.Team);
-        else
-            sets = ShowdownParsing.GetShowdownSets(text);
-        var list = sets.Where(z => z.Species != 0).ToList();
+        List<ShowdownSet> list;
+        using (new EnglishScope())
+        {
+            IEnumerable<ShowdownSet> sets = ShowdownUtil.IsTeamBackup(text)
+                ? ShowdownTeamSet.GetTeams(text).SelectMany(t => t.Team)
+                : ShowdownParsing.GetShowdownSets(text);
+            list = sets.Where(z => z.Species != 0).ToList();
+        }
         if (list.Count == 0)
             throw new EngineException("Nessun set Showdown valido trovato nel testo.");
 
@@ -136,8 +152,8 @@ public static class AutoLegality
                 results.Add(new { name = Describe.Name(s.Strings.Species, set.Species), status = "invalid", lines = set.InvalidLines.Select(l => l.ToString()).ToArray() });
                 continue;
             }
-            var regen = new RegenTemplate(set, sav.Generation);
-            var res = sav.GetLegalFromSet(regen);
+            APILegality.AsyncLegalizationResult res;
+            using (new EnglishScope()) res = sav.GetLegalFromSet(new RegenTemplate(set, sav.Generation));
             var pk = res.Created;
             pk.ResetPartyStats();
             pk.SetBoxForm();
@@ -153,21 +169,32 @@ public static class AutoLegality
     public static object Create(Session s, SlotRef r, ushort species, byte form, bool shiny)
     {
         var sav = s.Sav;
-        var template = sav.BlankPKM;
-        template.Species = species;
-        template.Form = form;
-        template.CurrentLevel = 50;
-        template.Language = sav.Language > 0 ? sav.Language : (int)LanguageID.English;
-        if (shiny) template.SetShiny();
-        var set = new ShowdownSet(template);
-        var regen = new RegenTemplate(set, sav.Generation);
-        var res = sav.GetLegalFromSet(regen);
-        var pk = res.Created;
+        PKM? pk = null;
+        string status;
+        using (new EnglishScope())
+        {
+            var en = GameInfo.Strings;
+            var name = en.Species[species];
+            if (form > 0)
+            {
+                var f = ShowdownParsing.GetShowdownFormName(species, ShowdownParsing.GetStringFromForm(form, en, species, sav.Context));
+                if (f.Length > 0) name += "-" + f;
+            }
+            var text = name + "\n" + (shiny ? "Shiny: Yes\n" : "");
+            var set = new ShowdownSet(text);
+            var regen = new RegenTemplate(set, sav.Generation);
+            var res = sav.GetLegalFromSet(regen);
+            status = Status(res.Status);
+            if (res.Created.Species == species && new LegalityAnalysis(res.Created).Valid)
+                pk = res.Created;
+        }
+        // Fallback: PKHeX's own encounter generator (what its Encounter Database does).
+        pk ??= Encounters.CreateLegal(sav, species, form, shiny);
+        if (pk is null)
+            throw new EngineException("Nessun incontro legale trovato per questa specie/forma in questo gioco.");
         pk.ResetPartyStats();
-        if (pk.Species != species)
-            throw new EngineException("Auto Legality non ha trovato un incontro legale per questa specie in questo gioco.");
         s.Set(r, pk, settings: default(EntityImportSettings), label: "Nuovo Pokémon");
-        return new { status = Status(res.Status), legal = new LegalityAnalysis(pk).Valid, detail = Describe.Detail(s, r, s.Get(r)) };
+        return new { status, legal = new LegalityAnalysis(s.Get(r)).Valid, detail = Describe.Detail(s, r, s.Get(r)) };
     }
 
     public static object LivingDex(Session s, int startBox, bool shiny, bool forms)
@@ -188,7 +215,8 @@ public static class AutoLegality
         List<PKM> generated;
         try
         {
-            generated = sav.GenerateLivingDex(sav.Personal, cfg).OrderBy(p => p.Species).ThenBy(p => p.Form).ToList();
+            using (new EnglishScope())
+                generated = sav.GenerateLivingDex(sav.Personal, cfg).OrderBy(p => p.Species).ThenBy(p => p.Form).ToList();
         }
         finally { cts.Cancel(); }
 

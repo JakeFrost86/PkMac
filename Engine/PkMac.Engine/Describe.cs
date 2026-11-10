@@ -224,7 +224,7 @@ public static class Describe
 
     private static string SafeShowdown(PKM pk)
     {
-        try { return ShowdownParsing.GetShowdownText(pk); } catch { return ""; }
+        try { using (new EnglishScope()) return ShowdownParsing.GetShowdownText(pk); } catch { return ""; }
     }
 
     private static string SafeFileName(PKM pk)

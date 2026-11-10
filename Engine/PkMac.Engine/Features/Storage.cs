@@ -309,7 +309,7 @@ public static class Storage
     }
 
     public static object ExportShowdown(Session s, SlotRef r)
-        => ShowdownParsing.GetShowdownText(s.Get(r));
+        { using (new EnglishScope()) return ShowdownParsing.GetShowdownText(s.Get(r)); }
 
     public static object Heal(Session s, SlotRef r)
     {

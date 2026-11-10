@@ -59,8 +59,10 @@ public static class FeatureTest
         };
 
         var sessions = new List<(string name, Session s)>();
+        var only = Environment.GetEnvironmentVariable("PKMAC_FT_ONLY")?.Split(',');
         foreach (var v in versions)
         {
+            if (only is not null && !only.Contains(v.ToString())) continue;
             SaveFile sav;
             try { sav = BlankSaveFile.Get(v); }
             catch (Exception e) { Log($"  ⚪️ {v,-6} blank non disponibile: {e.Message}"); continue; }
@@ -205,6 +207,33 @@ public static class FeatureTest
                     var pkm = Inspector.Inspect(s, new Params(new JsonObject { ["target"] = "pkm", ["ref"] = new JsonObject { ["kind"] = "box", ["box"] = 0, ["slot"] = 0 } }));
                     return $"{list.Count} fiocchi ({list[0]!["name"]})";
                 });
+            }
+            if (sav.HasBox && Environment.GetEnvironmentVariable("PKMAC_FT_CREATE") != "0")
+            {
+                foreach (var sp in new[] { Species.Pikachu, Species.Charizard, Species.Gengar })
+                {
+                    if (!sav.Personal.IsSpeciesInGame((ushort)sp)) continue;
+                    T(g, $"crea {sp}", () =>
+                    {
+                        var sw = System.Diagnostics.Stopwatch.StartNew();
+                        var r = new SlotRef(false, Math.Min(1, sav.BoxCount - 1), 3);
+                        if (s.Get(r).Species != 0) s.Clear(r, recordUndo: false);
+                        var res = ToNode(AutoLegality.Create(s, r, (ushort)sp, 0, false));
+                        var pk = s.Get(r);
+                        var la = new LegalityAnalysis(pk);
+                        var moves = string.Join(",", pk.Moves.Where(m => m != 0));
+                        var info = $"{res["status"]} legale={la.Valid} mosse=[{moves}] lv{pk.CurrentLevel} {sw.ElapsedMilliseconds}ms";
+                        if (!la.Valid) throw new Exception(info + " · " + la.Report(s.Language).Replace("\n", " | "));
+                        // Strip the moves and ask "Rendi legale" to fix it.
+                        var bad = pk.Clone(); bad.SetMoves(new ushort[4]); bad.RefreshChecksum();
+                        s.Set(r, bad, recordUndo: false);
+                        var lg = ToNode(AutoLegality.Legalize(s, r));
+                        var after = s.Get(r);
+                        var la2 = new LegalityAnalysis(after);
+                        if (!la2.Valid) throw new Exception(info + $" · rendi legale FALLITO: {lg["after"]} · " + la2.Report(s.Language).Replace("\n", " | "));
+                        return info + $" · rendi legale ok mosse=[{string.Join(",", after.Moves.Where(m => m != 0))}]";
+                    });
+                }
             }
             T(g, "write", () =>
             {
