@@ -38,11 +38,6 @@ struct BoxView: View {
                 }
             }
             .clipped()
-            .safeAreaInset(edge: .bottom) {
-                if model.save?.hasParty == true, !model.party.isEmpty {
-                    PartyDock().padding(.horizontal, 26).padding(.bottom, 14)
-                }
-            }
             .gesture(
                 DragGesture(minimumDistance: 40)
                     .onEnded { v in
@@ -50,6 +45,14 @@ struct BoxView: View {
                         Task { await model.showBox(model.currentBox + (v.translation.width < 0 ? 1 : -1)) }
                     }
             )
+
+            // Plain row (not a safe-area inset: changing insets during layout crashes AppKit).
+            if model.save?.hasParty == true, !model.party.isEmpty {
+                PartyDock()
+                    .frame(height: 78)
+                    .padding(.horizontal, 26)
+                    .padding(.bottom, 14)
+            }
         }
         .onKeyPress(.leftArrow) { Task { await model.showBox(model.currentBox - 1) }; return .handled }
         .onKeyPress(.rightArrow) { Task { await model.showBox(model.currentBox + 1) }; return .handled }

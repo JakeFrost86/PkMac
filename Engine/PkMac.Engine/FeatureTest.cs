@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using PKHeX.Core;
 using PkMac.Engine.Features;
+using Path = System.IO.Path;
 
 namespace PkMac.Engine;
 
@@ -68,12 +69,35 @@ public static class FeatureTest
             s.Load(sav, $"/tmp/{v}.sav");
             sessions.Add((v.ToString(), s));
         }
-        if (savePath is not null && File.Exists(savePath) && SaveUtil.TryGetSaveFile(savePath, out var real))
+        var realFiles = new List<string>();
+        if (savePath is not null && File.Exists(savePath)) realFiles.Add(savePath);
+        if (Directory.Exists("test"))
+            realFiles.AddRange(Directory.GetFiles("test").Where(f => !Path.GetFileName(f).StartsWith('.')));
+        var tmp = Path.Combine(Path.GetTempPath(), "pkmac-featuretest");
+        Directory.CreateDirectory(tmp);
+        foreach (var file in realFiles.Distinct())
         {
+            // Work on a copy: the test saves the file at the end.
+            var copy = Path.Combine(tmp, Path.GetFileName(file));
+            File.Copy(file, copy, overwrite: true);
             var s = new Session();
             s.SetLanguage("it");
-            s.Load(real, savePath);
-            sessions.Add(("real", s));
+            try
+            {
+                var opened = ToNode(SaveIO.Open(s, copy));
+                if (opened["needsChoice"]?.GetValue<bool>() == true)
+                {
+                    var entry = opened["saves"]![0]!["entry"]!.ToString();
+                    SaveIO.Open(s, copy, entry);
+                }
+                Log($"  📂 {Path.GetFileName(file)} → {GameInfo.GetVersionName(s.Sav.Version)} ({s.Sav.GetType().Name}{(s.Container is null ? "" : ", zip Azurii")})");
+                sessions.Add(("real", s));
+            }
+            catch (Exception e)
+            {
+                failures++;
+                Log($"  ❌ {Path.GetFileName(file)} non si apre: {e.GetType().Name}: {e.Message}\n        ↳ {e.StackTrace?.Split('\n').FirstOrDefault()?.Trim()}");
+            }
         }
 
         foreach (var (g, s) in sessions)
@@ -135,8 +159,9 @@ public static class FeatureTest
                 var mon = items.FirstOrDefault(i => i!["canReceive"]?.GetValue<bool>() == true);
                 if (mon is not null && sav.HasBox)
                 {
-                    Gifts.Receive(s, mon["id"]!.GetValue<int>(), new SlotRef(false, 0, 5));
-                    var pk = sav.GetBoxSlotAtIndex(0, 5);
+                    var got = ToNode(Gifts.Receive(s, mon["id"]!.GetValue<int>(), null));
+                    var at = got["ref"]!;
+                    var pk = sav.GetBoxSlotAtIndex(at["box"]!.GetValue<int>(), at["slot"]!.GetValue<int>());
                     var la = new LegalityAnalysis(pk);
                     extra += $" ricevuto {GameInfo.Strings.Species[pk.Species]} legale={la.Valid}" + (la.Valid ? "" : " · " + la.Report().Split('\n').FirstOrDefault(l => l.Contains("Invalid") || l.Length > 0));
                 }
@@ -189,6 +214,11 @@ public static class FeatureTest
                 {
                     if (!SaveUtil.TryGetSaveFile((Memory<byte>)data, out var re)) throw new Exception("non riletto");
                     if (re.OT != sav.OT) throw new Exception("OT diverso dopo rilettura");
+                }
+                if (g == "real")
+                {
+                    var saved = ToNode(SaveIO.Save(s, null, backup: false));
+                    return $"{data.Length} byte, checksum ok, salvataggio completo: {saved.ToJsonString()[..Math.Min(120, saved.ToJsonString().Length)]}";
                 }
                 return $"{data.Length} byte, checksum ok";
             });
