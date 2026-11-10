@@ -29,6 +29,7 @@ BUILD_NUMBER="${BUILD_NUMBER:-$(date +%y%m%d%H%M)}"
 if [[ -z "${PKMAC_REPO:-}" ]]; then
   PKMAC_REPO="$(git remote get-url origin 2>/dev/null | sed -E 's#(git@github.com:|https://github.com/)##; s#\.git$##' || true)"
 fi
+PKMAC_REPO="${PKMAC_REPO:-JakeFrost86/PkMac}"
 
 step() { printf "\n\033[1;35m▶ %s\033[0m\n" "$1"; }
 

@@ -43,11 +43,14 @@ final class Updater {
     }
     var repo: String {
         get {
-            UserDefaults.standard.string(forKey: "updates.repo")
-                ?? (Bundle.main.object(forInfoDictionaryKey: "PkMacUpdateRepo") as? String) ?? ""
+            if let saved = UserDefaults.standard.string(forKey: "updates.repo"), saved.contains("/") { return saved }
+            if let plist = Bundle.main.object(forInfoDictionaryKey: "PkMacUpdateRepo") as? String, plist.contains("/") { return plist }
+            return Self.defaultRepo
         }
         set { UserDefaults.standard.set(newValue.trimmingCharacters(in: .whitespaces), forKey: "updates.repo") }
     }
+
+    static let defaultRepo = "JakeFrost86/PkMac"
 
     static var appVersion: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0" }
 
