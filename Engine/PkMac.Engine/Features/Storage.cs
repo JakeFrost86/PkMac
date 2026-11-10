@@ -330,4 +330,58 @@ public static class Storage
         s.Set(r, pk, label: "IV al massimo");
         return Describe.Detail(s, r, s.Get(r));
     }
+
+    // ---------- ribbons & marks ----------
+
+    public static object Ribbons(Session s, SlotRef r)
+    {
+        var pk = s.Get(r);
+        if (pk.Species == 0) throw new EngineException("Slot vuoto.");
+        var la = new LegalityAnalysis(pk);
+        bool ribbonsOk = !la.Results.Any(x => x.Identifier == CheckIdentifier.Ribbon && !x.Valid);
+        var list = RibbonInfo.GetRibbonInfo(pk).Select(i => new
+        {
+            prop = i.Name,
+            name = s.Strings.Ribbons.GetNameSafe(i.Name, out var n) ? n : i.Name.Replace("Ribbon", ""),
+            mark = i.Name.StartsWith("RibbonMark", StringComparison.Ordinal),
+            count = i.Type == RibbonValueType.Byte,
+            value = i.Type == RibbonValueType.Byte ? i.RibbonCount : (i.HasRibbon ? 1 : 0),
+            max = i.Type == RibbonValueType.Byte ? i.MaxCount : 1,
+        }).ToArray();
+        int? affix = pk is IRibbonSetAffixed a ? a.AffixedRibbon : null;
+        return new { ribbons = list, affixed = affix, ribbonsValid = ribbonsOk, owned = list.Count(x => x.value > 0) };
+    }
+
+    /// <summary>{ set: [{ prop, value }] } or { action: "allValid" | "removeAll" } and optional { affixed }.</summary>
+    public static object SetRibbons(Session s, SlotRef r, Params p)
+    {
+        var pk = s.Get(r).Clone();
+        if (pk.Species == 0) throw new EngineException("Slot vuoto.");
+        switch (p.OptStr("action"))
+        {
+            case "allValid": RibbonApplicator.SetAllValidRibbons(pk); break;
+            case "removeAll": RibbonApplicator.RemoveAllValidRibbons(pk); break;
+        }
+        if (p.Raw["set"] is System.Text.Json.Nodes.JsonArray list)
+        {
+            var known = RibbonInfo.GetRibbonInfo(pk).ToDictionary(i => i.Name);
+            foreach (var n in list)
+            {
+                if (n is not System.Text.Json.Nodes.JsonObject o) continue;
+                var c = new Params(o);
+                var prop = c.Str("prop");
+                if (!known.TryGetValue(prop, out var info)) continue;
+                var v = c.Int("value", 0);
+                if (info.Type == RibbonValueType.Byte)
+                    ReflectUtil.SetValue(pk, prop, (byte)Math.Clamp(v, 0, info.MaxCount));
+                else
+                    ReflectUtil.SetValue(pk, prop, v > 0);
+            }
+        }
+        if (p.Has("affixed") && pk is IRibbonSetAffixed a)
+            a.AffixedRibbon = (sbyte)Math.Clamp(p.Int("affixed"), -1, 127);
+        pk.RefreshChecksum();
+        s.Set(r, pk, label: "Fiocchi");
+        return new { ribbons = Ribbons(s, r), detail = Pokemon(s, r) };
+    }
 }

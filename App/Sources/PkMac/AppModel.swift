@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 enum AppSection: String, CaseIterable, Identifiable, Hashable {
     case boxes, party, overview, trainer
+    case bag, pokedex, events, gifts, transfer, advanced
     case alm, sorting, special, liveHex, home
     case backups
 
@@ -15,6 +16,12 @@ enum AppSection: String, CaseIterable, Identifiable, Hashable {
         case .party: "Squadra"
         case .overview: "Panoramica"
         case .trainer: "Allenatore"
+        case .bag: "Borsa"
+        case .pokedex: "Pokédex"
+        case .events: "Eventi di gioco"
+        case .gifts: "Doni segreti"
+        case .transfer: "Trasferisci"
+        case .advanced: "Dati avanzati"
         case .alm: "Auto Legality"
         case .sorting: "Ordina"
         case .special: "Pokémon speciali"
@@ -30,6 +37,12 @@ enum AppSection: String, CaseIterable, Identifiable, Hashable {
         case .party: "person.3.fill"
         case .overview: "chart.pie.fill"
         case .trainer: "person.text.rectangle.fill"
+        case .bag: "bag.fill"
+        case .pokedex: "book.closed.fill"
+        case .events: "flag.2.crossed.fill"
+        case .gifts: "gift.fill"
+        case .transfer: "arrow.left.arrow.right.square.fill"
+        case .advanced: "slider.horizontal.below.square.and.square.filled"
         case .alm: "wand.and.stars"
         case .sorting: "arrow.up.arrow.down.circle.fill"
         case .special: "sparkle.magnifyingglass"
@@ -45,6 +58,12 @@ enum AppSection: String, CaseIterable, Identifiable, Hashable {
         case .party: Color(hex: 0xFF5F6D)
         case .overview: Color(hex: 0xA066FF)
         case .trainer: Color(hex: 0x2CC5A4)
+        case .bag: Color(hex: 0xE8894A)
+        case .pokedex: Color(hex: 0xF0524F)
+        case .events: Color(hex: 0x7A6CFF)
+        case .gifts: Color(hex: 0xFF6FB5)
+        case .transfer: Color(hex: 0x22B8CF)
+        case .advanced: Color(hex: 0x6B7A90)
         case .alm: Color(hex: 0xF7A531)
         case .sorting: Color(hex: 0x5CC85A)
         case .special: Color(hex: 0xFF5C93)
@@ -54,7 +73,8 @@ enum AppSection: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
-    static let saveSections: [AppSection] = [.boxes, .party, .overview, .trainer]
+    static let saveSections: [AppSection] = [.boxes, .party, .overview, .trainer, .bag, .pokedex, .events, .gifts]
+    static let toolSections: [AppSection] = [.transfer, .advanced]
     static let pluginSections: [AppSection] = [.alm, .sorting, .special, .liveHex, .home]
 }
 
@@ -110,6 +130,14 @@ final class AppModel {
     var boxDirection: Edge = .trailing
     var zipChoice: OpenChoice?
     var recentFiles: [String] = UserDefaults.standard.stringArray(forKey: "recentFiles") ?? []
+
+    // Second save (transfers)
+    var saveB: SaveInfo?
+    var boxB: BoxData?
+    var currentBoxB = 0
+    var partyB: [SlotSummary] = []
+    var transferBoxA = 0
+    var boxA: BoxData?
 
     var accentType: PokeType { PokeType(key: detail?.summary.primaryType ?? box?.slots.first(where: { !$0.empty })?.primaryType) }
 
@@ -171,13 +199,13 @@ final class AppModel {
         }
     }
 
-    private func call<T: Decodable>(_ method: String, _ params: [String: Any] = [:]) async throws -> T {
+    func call<T: Decodable>(_ method: String, _ params: [String: Any] = [:]) async throws -> T {
         guard let engine else { throw EngineError(message: "Motore non pronto.") }
         return try await engine.call(method, params)
     }
 
     @discardableResult
-    private func send(_ method: String, _ params: [String: Any] = [:]) async throws -> Data {
+    func send(_ method: String, _ params: [String: Any] = [:]) async throws -> Data {
         guard let engine else { throw EngineError(message: "Motore non pronto.") }
         return try await engine.send(method, params)
     }

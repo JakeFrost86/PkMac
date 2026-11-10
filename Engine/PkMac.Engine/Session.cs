@@ -11,6 +11,8 @@ public sealed class Session
     public GameStrings Strings { get; private set; } = GameInfo.GetStrings("it");
     public GameStrings English { get; } = GameInfo.GetStrings("en");
     public bool Dirty { get; set; }
+    /// <summary>Pick lists filtered for this save (each open save has its own).</summary>
+    public FilteredGameDataSource Sources { get; private set; } = GameInfo.FilteredSources;
 
     private readonly Stack<UndoEntry> _undo = new();
     private readonly Stack<UndoEntry> _redo = new();
@@ -27,7 +29,7 @@ public sealed class Session
         Strings = GameInfo.GetStrings(lang);
         GameInfo.Strings = Strings;
         if (Save is { } sav)
-            GameInfo.FilteredSources = new FilteredGameDataSource(sav, GameInfo.Sources);
+            Sources = new FilteredGameDataSource(sav, GameInfo.Sources);
     }
 
     /// <summary>Set when the save lives inside an Azurii zip (export, slot, iCloud copy or full backup).</summary>
@@ -41,7 +43,7 @@ public sealed class Session
         Dirty = false;
         _undo.Clear();
         _redo.Clear();
-        GameInfo.FilteredSources = new FilteredGameDataSource(sav, GameInfo.Sources);
+        Sources = new FilteredGameDataSource(sav, GameInfo.Sources);
     }
 
     public void Close()
@@ -57,7 +59,7 @@ public sealed class Session
     public void Replace(SaveFile sav)
     {
         Save = sav;
-        GameInfo.FilteredSources = new FilteredGameDataSource(sav, GameInfo.Sources);
+        Sources = new FilteredGameDataSource(sav, GameInfo.Sources);
     }
 
     // ---------- slot access ----------

@@ -297,7 +297,16 @@ struct ItemIcon: View {
         }
         .task(id: key) {
             guard let key else { image = nil; return }
-            image = await SpriteStore.shared.item(key)
+            if let img = await SpriteStore.shared.item(key) { image = img; return }
+            // Fallbacks for names PokeAPI files differently (TMs/HMs/TRs, records…).
+            let lower = key.lowercased()
+            let fallback: String? =
+                lower.hasPrefix("hm") ? "hm-normal" :
+                (lower.hasPrefix("tm") || lower.hasPrefix("tr")) ? "tm-normal" :
+                lower.contains("berry") ? "oran-berry" :
+                lower.contains("ball") ? "poke-ball" :
+                lower.contains("mail") ? "grass-mail" : nil
+            if let fallback { image = await SpriteStore.shared.item(fallback) }
         }
     }
 }

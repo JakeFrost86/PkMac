@@ -38,6 +38,11 @@ struct BoxView: View {
                 }
             }
             .clipped()
+            .safeAreaInset(edge: .bottom) {
+                if model.save?.hasParty == true, !model.party.isEmpty {
+                    PartyDock().padding(.horizontal, 26).padding(.bottom, 14)
+                }
+            }
             .gesture(
                 DragGesture(minimumDistance: 40)
                     .onEnded { v in
@@ -161,7 +166,8 @@ private struct BoxStrip: View {
                             .background(selected ? Color.accentColor.opacity(0.12) : .clear, in: .rect(cornerRadius: 8))
                         }
                         .buttonStyle(.plain)
-                        .help("\(b.name) · \(b.count) Pokémon")
+                        .help("\(b.name) · \(b.count) Pokémon — trascina qui un Pokémon per spostarlo in questo box")
+                        .modifier(BoxChipDrop(box: b.box))
                         .id(b.box)
                     }
                 }
@@ -172,6 +178,69 @@ private struct BoxStrip: View {
             }
         }
         .frame(height: 44)
+    }
+}
+
+/// Dropping a Pokémon on a box chip moves it to the first free slot of that box.
+private struct BoxChipDrop: ViewModifier {
+    @Environment(AppModel.self) private var model
+    let box: Int
+    @State private var targeted = false
+    @State private var hoverTask: Task<Void, Never>?
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(targeted ? 1.25 : 1)
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.brand, lineWidth: targeted ? 2 : 0))
+            .animation(Theme.snappy, value: targeted)
+            .onDrop(of: [.pkmacSlot], isTargeted: $targeted) { providers in
+                let copy = NSEvent.modifierFlags.contains(.option)
+                return AppModel.loadDrag(providers) { drag in
+                    Task {
+                        if drag.save == "a" { await model.moveToBox(from: drag.ref, box: box, copy: copy) }
+                        else if let empty = await firstEmpty() {
+                            await model.transfer(from: drag, to: SlotDrag(save: "a", ref: .box(box, empty)), copy: copy)
+                        } else { model.toast(.warning, "Il box \(box + 1) è pieno") }
+                    }
+                }
+            }
+            .onChange(of: targeted) { _, on in
+                // Hovering a chip while dragging opens that box, like the games.
+                hoverTask?.cancel()
+                guard on else { return }
+                hoverTask = Task {
+                    try? await Task.sleep(for: .milliseconds(650))
+                    if !Task.isCancelled, model.currentBox != box { await model.showBox(box) }
+                }
+            }
+    }
+
+    private func firstEmpty() async -> Int? {
+        let data: BoxData? = try? await model.call("box", ["box": box])
+        return data?.slots.firstIndex { $0.empty && $0.locked != true }
+    }
+}
+
+/// Compact party row under the box grid: drag between party and boxes.
+struct PartyDock: View {
+    @Environment(AppModel.self) private var model
+    @Namespace private var ns
+
+    var body: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Squadra").font(.system(size: 12, weight: .bold, design: .rounded))
+                Text("trascina ⇅").font(.system(size: 10, design: .rounded)).foregroundStyle(.secondary)
+            }
+            .frame(width: 64, alignment: .leading)
+            ForEach(model.party) { p in
+                SlotCell(slot: p, size: 54, namespace: ns)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .glassEffect(.regular, in: .rect(cornerRadius: 20))
     }
 }
 
@@ -215,13 +284,8 @@ struct SlotCell: View {
         }
         .contextMenu { SlotMenu(slot: slot) }
         .onDrag {
-            guard !slot.empty, let data = try? JSONEncoder().encode(slot.ref) else { return NSItemProvider() }
-            let p = NSItemProvider()
-            p.registerDataRepresentation(forTypeIdentifier: UTType.pkmacSlot.identifier, visibility: .ownProcess) { done in
-                done(data, nil); return nil
-            }
-            p.suggestedName = slot.displayName
-            return p
+            guard !slot.empty else { return NSItemProvider() }
+            return AppModel.dragProvider(save: "a", ref: slot.ref, name: slot.displayName)
         } preview: {
             PokemonSprite(key: slot.sprite, tint: type.color).frame(width: size * 0.9, height: size * 0.9)
         }
@@ -290,13 +354,13 @@ struct SlotCell: View {
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
         let copy = NSEvent.modifierFlags.contains(.option)
-        if let p = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.pkmacSlot.identifier) }) {
-            p.loadDataRepresentation(forTypeIdentifier: UTType.pkmacSlot.identifier) { data, _ in
-                guard let data, let from = try? JSONDecoder().decode(SlotRef.self, from: data) else { return }
-                Task { @MainActor in await model.move(from: from, to: slot.ref, copy: copy) }
+        let target = slot.ref
+        if AppModel.loadDrag(providers, { drag in
+            Task {
+                if drag.save == "a" { await model.move(from: drag.ref, to: target, copy: copy) }
+                else { await model.transfer(from: drag, to: SlotDrag(save: "a", ref: target), copy: copy) }
             }
-            return true
-        }
+        }) { return true }
         Task { @MainActor in
             let urls = await providers.loadURLs()
             await model.handleDrop(urls, onto: slot.ref)

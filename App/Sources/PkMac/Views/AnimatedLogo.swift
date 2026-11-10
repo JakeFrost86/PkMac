@@ -155,11 +155,14 @@ enum AppIconManager {
 
     static let all: [(id: String, name: String)] = [
         ("pianeta", "Pianeta"), ("neon", "Neon"), ("classica", "Classica"), ("officina", "Officina"),
-        ("neon-mini", "Neon compatta"), ("pixel", "Pixel"), ("floppy", "Floppy"), ("pianeta-mini", "Pianeta compatta"),
+        ("pixel", "Pixel"), ("floppy", "Floppy"),
         ("apertura", "Apertura"), ("finder", "Finder"), ("matita", "Matita"), ("scritta", "Scritta"),
     ]
 
-    static var current: String { UserDefaults.standard.string(forKey: key) ?? defaultID }
+    static var current: String {
+        let id = UserDefaults.standard.string(forKey: key) ?? defaultID
+        return all.contains { $0.id == id } ? id : defaultID
+    }
 
     static func image(_ id: String) -> NSImage? {
         Bundle.main.url(forResource: id, withExtension: "png", subdirectory: "Icons").flatMap(NSImage.init(contentsOf:))

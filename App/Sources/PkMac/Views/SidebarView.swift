@@ -20,6 +20,11 @@ struct SidebarView: View {
                     }
                 }
             }
+            SwiftUI.Section("Strumenti") {
+                ForEach(AppSection.toolSections) { s in
+                    SidebarRow(section: s, badge: s == .transfer ? model.saveB.map { $0.versionKey } : nil).tag(s)
+                }
+            }
             SwiftUI.Section("Plugin") {
                 ForEach(AppSection.pluginSections) { s in
                     SidebarRow(section: s, badge: nil).tag(s)

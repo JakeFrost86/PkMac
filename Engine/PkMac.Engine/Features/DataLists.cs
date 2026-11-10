@@ -7,7 +7,7 @@ public static class DataLists
 {
     public static object All(Session s)
     {
-        var src = GameInfo.FilteredSources;
+        var src = s.Sources;
         object Map(IEnumerable<ComboItem> items) => items.Where(i => i.Value >= 0).Select(i => new { v = i.Value, t = i.Text }).ToArray();
         var ctx = s.Sav.Context;
         return new

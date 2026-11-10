@@ -37,6 +37,8 @@ public static class Program
             return 0;
         }
 
+        if (args.Length > 0 && args[0] == "--featuretest")
+            return FeatureTest.Run(args.Skip(1).FirstOrDefault());
         if (args.Length > 0 && args[0] == "--selftest")
             return SelfTest.Run(args.Skip(1).FirstOrDefault());
 

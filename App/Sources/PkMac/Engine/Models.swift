@@ -374,18 +374,32 @@ struct HomeDumpResult: Codable, Sendable {
 }
 
 struct TrainerData: Codable, Sendable {
+    struct Lang: Codable, Hashable, Sendable { var v: Int; var t: String }
+    struct Badges: Codable, Hashable, Sendable { var value: Int; var count: Int }
     var ot: String
     var maxOtLength: Int
     var gender: Int
+    var hasGender: Bool?
     var tid: UInt32
     var sid: UInt32
+    var tidMax: UInt32?
+    var sidMax: UInt32?
+    var hasSid: Bool?
+    var idFormat: String?
     var money: UInt32
     var maxMoney: Int
     var hours: Int
     var minutes: Int
     var seconds: Int
+    var maxHours: Int?
     var language: Int
+    var languages: [Lang]?
     var game: String
+    var versionKey: String?
+    var generation: Int?
+    var seenCount: Int?
+    var caughtCount: Int?
+    var badges: Badges?
 }
 
 struct UndoResult: Codable, Sendable {
@@ -407,4 +421,275 @@ struct SelfTestReport: Codable, Sendable {
     var ok: Bool
     var versions: Versions
     var checks: [Check]
+}
+
+
+// MARK: - Bag
+
+struct BagItem: Codable, Hashable, Identifiable, Sendable {
+    var id: Int
+    var count: Int
+    var name: String
+    var key: String?
+    var max: Int
+}
+
+struct AllowedItem: Codable, Hashable, Identifiable, Sendable {
+    var v: Int
+    var t: String
+    var key: String?
+    var id: Int { v }
+}
+
+struct BagPouch: Codable, Hashable, Identifiable, Sendable {
+    var index: Int
+    var type: String
+    var name: String
+    var symbol: String
+    var capacity: Int
+    var maxCount: Int
+    var items: [BagItem]
+    var allowed: [AllowedItem]
+    var id: Int { index }
+}
+
+struct BagData: Codable, Sendable {
+    var pouches: [BagPouch]
+    var supported: Bool
+}
+
+// MARK: - Events
+
+struct NamedFlag: Codable, Hashable, Identifiable, Sendable {
+    var i: Int
+    var name: String
+    var category: String
+    var id: Int { i }
+}
+
+struct NamedWork: Codable, Hashable, Identifiable, Sendable {
+    struct Option: Codable, Hashable, Sendable { var v: Int; var t: String }
+    var i: Int
+    var name: String
+    var category: String
+    var options: [Option]
+    var id: Int { i }
+}
+
+struct EventsData: Codable, Sendable {
+    var supported: Bool
+    var useBlocks: Bool?
+    var message: String?
+    var game: String?
+    var flagCount: Int?
+    var workCount: Int?
+    var systemCount: Int?
+    var workMax: Int?
+    var flags: [Bool]?
+    var work: [Int]?
+    var system: [Bool]?
+    var namedFlags: [NamedFlag]?
+    var namedSystem: [NamedFlag]?
+    var namedWork: [NamedWork]?
+}
+
+// MARK: - Pokédex
+
+struct DexEntry: Codable, Hashable, Identifiable, Sendable {
+    var species: Int
+    var name: String
+    var seen: Bool
+    var caught: Bool
+    var types: [String]
+    var formKey: String
+    var id: Int { species }
+}
+
+struct DexData: Codable, Sendable {
+    var supported: Bool
+    var seen: Int?
+    var caught: Int?
+    var total: Int?
+    var entries: [DexEntry]
+}
+
+// MARK: - Mystery gifts
+
+struct GiftCard: Codable, Hashable, Sendable {
+    var slot: Int?
+    var id: Int?
+    var empty: Bool
+    var type: String?
+    var generation: Int?
+    var cardId: Int?
+    var title: String?
+    var isEntity: Bool?
+    var isItem: Bool?
+    var species: Int?
+    var speciesName: String?
+    var form: Int?
+    var formKey: String?
+    var level: Int?
+    var shiny: Bool?
+    var egg: Bool?
+    var heldItem: String?
+    var item: String?
+    var itemKey: String?
+    var quantity: Int?
+    var ot: String?
+    var used: Bool?
+    var canAlbum: Bool?
+    var canReceive: Bool?
+
+    var sprite: SpriteKey? {
+        guard isEntity == true, let species, species > 0 else { return nil }
+        return SpriteKey(species: species, formKey: formKey ?? "", shiny: shiny ?? false, female: false, egg: egg ?? false)
+    }
+    var displayTitle: String {
+        let t = (title ?? "").trimmingCharacters(in: .whitespaces)
+        if !t.isEmpty { return t }
+        return speciesName ?? item ?? "Dono"
+    }
+}
+
+struct AlbumEntry: Codable, Hashable, Sendable {
+    var card: GiftCard
+    var lines: [String]
+}
+
+struct GiftAlbum: Codable, Sendable {
+    var supported: Bool
+    var message: String?
+    var capacity: Int?
+    var lockCapsuleSlot: Int?
+    var cards: [AlbumEntry]?
+    var hasFlags: Bool?
+    var flagMax: Int?
+    var received: [Int]?
+    var canToggleUsed: Bool?
+}
+
+struct GiftDb: Codable, Sendable {
+    var total: Int
+    var shown: Int
+    var hasAlbum: Bool
+    var items: [GiftCard]
+}
+
+struct GiftDetail: Codable, Sendable {
+    var card: GiftCard
+    var lines: [String]
+}
+
+// MARK: - Blocks & inspector
+
+struct BlockRow: Codable, Hashable, Identifiable, Sendable {
+    var key: String
+    var index: Int
+    var name: String
+    var named: Bool
+    var type: String
+    var size: Int
+    var value: JSONScalar?
+    var editable: Bool
+    var hasObject: Bool
+    var id: String { key }
+}
+
+struct BlocksData: Codable, Sendable {
+    var supported: Bool
+    var total: Int?
+    var blocks: [BlockRow]
+}
+
+/// A JSON value that is a bool, number or string.
+enum JSONScalar: Codable, Hashable, Sendable {
+    case bool(Bool), string(String), number(Double), null
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        if c.decodeNil() { self = .null }
+        else if let b = try? c.decode(Bool.self) { self = .bool(b) }
+        else if let d = try? c.decode(Double.self) { self = .number(d) }
+        else { self = .string(try c.decode(String.self)) }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer()
+        switch self {
+        case .bool(let b): try c.encode(b)
+        case .string(let s): try c.encode(s)
+        case .number(let d): try c.encode(d)
+        case .null: try c.encodeNil()
+        }
+    }
+
+    var text: String {
+        switch self {
+        case .bool(let b): b ? "true" : "false"
+        case .string(let s): s
+        case .number(let d): d == d.rounded() ? String(Int64(d)) : String(d)
+        case .null: ""
+        }
+    }
+    var bool: Bool { if case .bool(let b) = self { return b }; return text == "true" || text == "1" }
+}
+
+struct InspectProp: Codable, Hashable, Identifiable, Sendable {
+    var name: String
+    var kind: String
+    var type: String
+    var value: JSONScalar?
+    var editable: Bool
+    var min: String?
+    var max: String?
+    var options: [String]?
+    var id: String { name }
+}
+
+struct InspectData: Codable, Sendable {
+    var type: String
+    var props: [InspectProp]
+}
+
+struct InspectSetResult: Codable, Sendable {
+    var ok: Bool
+    var props: [InspectProp]
+}
+
+// MARK: - Ribbons
+
+struct RibbonRow: Codable, Hashable, Identifiable, Sendable {
+    var prop: String
+    var name: String
+    var mark: Bool
+    var count: Bool
+    var value: Int
+    var max: Int
+    var id: String { prop }
+}
+
+struct RibbonsData: Codable, Sendable {
+    var ribbons: [RibbonRow]
+    var affixed: Int?
+    var ribbonsValid: Bool
+    var owned: Int
+}
+
+struct RibbonsSetResult: Codable, Sendable {
+    var ribbons: RibbonsData
+}
+
+// MARK: - Transfer
+
+struct TransferCheck: Codable, Sendable {
+    var ok: Bool
+    var problem: String?
+    var format: String?
+}
+
+/// Drag payload: which open save a slot belongs to.
+struct SlotDrag: Codable, Hashable, Sendable {
+    var save: String
+    var ref: SlotRef
 }

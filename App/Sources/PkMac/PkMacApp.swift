@@ -93,6 +93,10 @@ struct PkMacCommands: Commands {
                 }
             }
             .disabled(model.recentFiles.isEmpty)
+            Divider()
+            Button("Apri secondo salvataggio per trasferire…") { model.section = .transfer; model.openSecondPanel() }
+                .keyboardShortcut("o", modifiers: [.command, .shift])
+                .disabled(model.save == nil)
         }
         CommandGroup(replacing: .saveItem) {
             Button("Salva con verifica checksum") { Task { await model.saveFile() } }

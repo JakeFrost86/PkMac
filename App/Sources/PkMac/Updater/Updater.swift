@@ -43,7 +43,6 @@ final class Updater {
     }
     var repo: String {
         get {
-            if let saved = UserDefaults.standard.string(forKey: "updates.repo"), saved.contains("/") { return saved }
             if let plist = Bundle.main.object(forInfoDictionaryKey: "PkMacUpdateRepo") as? String, plist.contains("/") { return plist }
             return Self.defaultRepo
         }

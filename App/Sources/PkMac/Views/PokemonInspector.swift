@@ -76,7 +76,7 @@ private struct EmptySlotPanel: View {
 // MARK: - Detail
 
 private enum DetailTab: String, CaseIterable, Identifiable {
-    case summary = "Riepilogo", stats = "Statistiche", moves = "Mosse", origin = "Origine"
+    case summary = "Riepilogo", stats = "Statistiche", moves = "Mosse", origin = "Origine", ribbons = "Fiocchi", advanced = "Avanzate"
     var id: String { rawValue }
     var symbol: String {
         switch self {
@@ -84,6 +84,8 @@ private enum DetailTab: String, CaseIterable, Identifiable {
         case .stats: "hexagon"
         case .moves: "bolt.circle"
         case .origin: "globe.europe.africa"
+        case .ribbons: "rosette"
+        case .advanced: "slider.horizontal.3"
         }
     }
 }
@@ -102,11 +104,17 @@ struct PokemonDetailView: View {
                 LegalityBanner(detail: detail)
                 Picker("", selection: $tab) {
                     ForEach(DetailTab.allCases) { t in
-                        Label(t.rawValue, systemImage: t.symbol).tag(t)
+                        Image(systemName: t.symbol).help(t.rawValue).tag(t)
                     }
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
+                Text(tab.rawValue)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, -8)
+                    .contentTransition(.opacity)
 
                 Group {
                     switch tab {
@@ -114,6 +122,10 @@ struct PokemonDetailView: View {
                     case .stats: StatsTab(detail: detail)
                     case .moves: MovesTab(detail: detail)
                     case .origin: OriginTab(detail: detail)
+                    case .ribbons: RibbonsTab(ref: detail.summary.ref)
+                    case .advanced:
+                        InspectorBrowser(target: ["target": "pkm", "ref": detail.summary.ref.json], rootTitle: detail.summary.displayName, compact: true)
+                            .frame(minHeight: 460)
                     }
                 }
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
@@ -618,5 +630,86 @@ private struct ActionBar: View {
             .controlSize(.small)
         }
         .disabled(!detail.canEdit)
+    }
+}
+
+
+// MARK: - Ribbons & marks
+
+private struct RibbonsTab: View {
+    @Environment(AppModel.self) private var model
+    let ref: SlotRef
+    @State private var data: RibbonsData?
+    @State private var marks = false
+    @State private var filter = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let d = data {
+                HStack {
+                    StatusBadge(kind: d.ribbonsValid ? .ok : .bad, text: d.ribbonsValid ? "Fiocchi legali" : "Fiocchi non legali")
+                    Text("\(d.owned)/\(d.ribbons.count)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    Spacer()
+                    Menu {
+                        Button { Task { data = await model.setRibbons(ref, action: "allValid") ?? data } } label: { Label("Tutti quelli ottenibili legalmente", systemImage: "rosette") }
+                        Button(role: .destructive) { Task { data = await model.setRibbons(ref, action: "removeAll") ?? data } } label: { Label("Togli tutti", systemImage: "xmark") }
+                    } label: { Image(systemName: "wand.and.stars") }
+                    .menuIndicator(.hidden).buttonStyle(.glass).controlSize(.small)
+                }
+                if d.ribbons.contains(where: \.mark) {
+                    Picker("", selection: $marks) { Text("Fiocchi").tag(false); Text("Emblemi").tag(true) }
+                        .pickerStyle(.segmented).labelsHidden()
+                }
+                TextField("Cerca", text: $filter).textFieldStyle(.roundedBorder)
+                let rows = d.ribbons.filter { $0.mark == marks && (filter.isEmpty || $0.name.localizedCaseInsensitiveContains(filter)) }
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 8)], spacing: 8) {
+                    ForEach(rows) { r in
+                        RibbonChip(row: r, affixed: false) { v in
+                            Task { data = await model.setRibbons(ref, set: [["prop": r.prop, "value": v]]) ?? data }
+                        }
+                    }
+                }
+                if rows.isEmpty {
+                    Text(d.ribbons.isEmpty ? "Questo formato non ha fiocchi." : "Nessun risultato.").font(.callout).foregroundStyle(.secondary)
+                }
+            } else {
+                ProgressView().frame(maxWidth: .infinity, minHeight: 120)
+            }
+        }
+        .task(id: ref) { data = await model.ribbons(ref) }
+    }
+}
+
+private struct RibbonChip: View {
+    let row: RibbonRow
+    let affixed: Bool
+    let onSet: (Int) -> Void
+    @State private var hover = false
+
+    private var on: Bool { row.value > 0 }
+    private var hue: Double { Double(row.prop.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) & 0xFFFF } % 360) / 360 }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ZStack {
+                Image(systemName: row.mark ? "seal.fill" : "rosette")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(on ? AnyShapeStyle(LinearGradient(colors: [Color(hue: hue, saturation: 0.55, brightness: 1), Color(hue: hue, saturation: 0.8, brightness: 0.8)], startPoint: .top, endPoint: .bottom)) : AnyShapeStyle(.quaternary))
+                    .symbolEffect(.bounce, value: on)
+            }
+            .frame(width: 22)
+            Text(row.name).font(.system(size: 11, weight: on ? .semibold : .regular)).lineLimit(2).foregroundStyle(on ? .primary : .secondary)
+            Spacer(minLength: 0)
+            if row.count {
+                Stepper("\(row.value)", value: Binding(get: { row.value }, set: { onSet($0) }), in: 0...row.max)
+                    .font(.system(size: 10.5).monospacedDigit()).controlSize(.mini)
+            }
+        }
+        .padding(7)
+        .background(on ? Color.accentColor.opacity(hover ? 0.16 : 0.1) : .primary.opacity(hover ? 0.06 : 0.03), in: .rect(cornerRadius: 10, style: .continuous))
+        .contentShape(.rect)
+        .onHover { hover = $0 }
+        .onTapGesture { if !row.count { onSet(on ? 0 : 1) } }
+        .help(row.name)
     }
 }

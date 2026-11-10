@@ -20,7 +20,6 @@ struct SettingsView: View {
 
 private struct UpdatesSettings: View {
     @Environment(AppModel.self) private var model
-    @State private var repo = ""
 
     var body: some View {
         let u = model.updater
@@ -73,17 +72,13 @@ private struct UpdatesSettings: View {
                 }
             }
 
-            SwiftUI.Section("Repository GitHub di PkMac") {
-                TextField("utente/PkMac", text: $repo)
-                    .onSubmit { u.repo = repo }
-                Text("Da qui arrivano gli aggiornamenti del motore e dell'app.").font(.caption).foregroundStyle(.secondary)
+            SwiftUI.Section("Ripristino") {
                 Button("Torna al motore incluso nell'app") { Task { await model.rollbackEngine() } }
                     .disabled(EngineManager.activeManifest() == nil)
+                Text("Utile se un aggiornamento del motore dovesse dare problemi.").font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
-        .onAppear { repo = u.repo }
-        .onDisappear { u.repo = repo }
     }
 }
 

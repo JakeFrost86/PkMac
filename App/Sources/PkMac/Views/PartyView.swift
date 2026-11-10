@@ -84,18 +84,18 @@ private struct PartyCard: View {
         }
         .contextMenu { SlotMenu(slot: slot) }
         .onDrop(of: [.pkmacSlot], isTargeted: $targeted) { providers in
-            guard let p = providers.first else { return false }
-            p.loadDataRepresentation(forTypeIdentifier: UTType.pkmacSlot.identifier) { data, _ in
-                guard let data, let from = try? JSONDecoder().decode(SlotRef.self, from: data) else { return }
-                Task { @MainActor in await model.move(from: from, to: slot.ref, copy: false) }
+            let copy = NSEvent.modifierFlags.contains(.option)
+            let target = slot.ref
+            return AppModel.loadDrag(providers) { drag in
+                Task {
+                    if drag.save == "a" { await model.move(from: drag.ref, to: target, copy: copy) }
+                    else { await model.transfer(from: drag, to: SlotDrag(save: "a", ref: target), copy: copy) }
+                }
             }
-            return true
         }
         .onDrag {
-            guard !slot.empty, let data = try? JSONEncoder().encode(slot.ref) else { return NSItemProvider() }
-            let p = NSItemProvider()
-            p.registerDataRepresentation(forTypeIdentifier: UTType.pkmacSlot.identifier, visibility: .ownProcess) { done in done(data, nil); return nil }
-            return p
+            guard !slot.empty else { return NSItemProvider() }
+            return AppModel.dragProvider(save: "a", ref: slot.ref, name: slot.displayName)
         }
     }
 }
@@ -236,84 +236,280 @@ private struct RingTile: View {
 
 // MARK: - Trainer
 
+/// Player character sprite for the loaded game (Pokémon Showdown trainer sprites), cached on disk.
+enum TrainerArt {
+    static func name(versionKey: String?, gender: Int) -> String? {
+        let f = gender == 1
+        switch versionKey ?? "" {
+        case "RD", "GN", "BU", "YW", "RBY": return "red-gen1"
+        case "GD", "SI", "GS": return "ethan-gen2"
+        case "C": return f ? "kris-gen2" : "ethan-gen2c"
+        case "R", "S", "RS": return f ? "may-rs" : "brendan-rs"
+        case "E": return f ? "may-e" : "brendan-e"
+        case "FR", "LG", "FRLG": return f ? "leaf-gen3" : "red-gen3"
+        case "D", "P", "DP", "BD", "SP", "BDSP": return f ? "dawn" : "lucas"
+        case "Pt": return f ? "dawn-gen4pt" : "lucas-gen4pt"
+        case "HG", "SS", "HGSS": return f ? "lyra" : "ethan"
+        case "B", "W", "BW": return f ? "hilda" : "hilbert"
+        case "B2", "W2", "B2W2": return f ? "rosa" : "nate"
+        case "X", "Y", "XY": return f ? "serena" : "calem"
+        case "OR", "AS", "ORAS": return f ? "may" : "brendan"
+        case "SN", "MN", "SM": return f ? "selene" : "elio"
+        case "US", "UM", "USUM": return f ? "selene-usum" : "elio-usum"
+        case "GP", "GE", "GG": return f ? "elaine" : "chase"
+        case "SW", "SH", "SWSH": return f ? "gloria" : "victor"
+        case "PLA": return f ? "akari" : "rei"
+        case "SL", "VL", "SV": return f ? "juliana" : "florian"
+        case "ZA": return f ? "lida" : "urbain"
+        default: return nil
+        }
+    }
+
+    static func url(_ name: String) -> URL { URL(string: "https://play.pokemonshowdown.com/sprites/trainers/\(name).png")! }
+}
+
+actor TrainerArtStore {
+    static let shared = TrainerArtStore()
+    private var memory: [String: NSImage] = [:]
+    private let dir: URL = {
+        let d = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("PkMac/Trainers", isDirectory: true)
+        try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+        return d
+    }()
+
+    func image(_ name: String) async -> NSImage? {
+        if let m = memory[name] { return m }
+        let file = dir.appendingPathComponent("\(name).png")
+        if let data = try? Data(contentsOf: file), let img = NSImage(data: data) { memory[name] = img; return img }
+        guard let (data, resp) = try? await URLSession.shared.data(from: TrainerArt.url(name)),
+              (resp as? HTTPURLResponse)?.statusCode == 200, let img = NSImage(data: data) else { return nil }
+        let out = img.trimmedTransparent() ?? img
+        if let png = out.pngData { try? png.write(to: file) }
+        memory[name] = out
+        return out
+    }
+}
+
+struct TrainerSprite: View {
+    let versionKey: String?
+    let gender: Int
+    @State private var image: NSImage?
+    @State private var bob = false
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(nsImage: image).resizable().interpolation(.none).scaledToFit()
+                    .shadow(color: .black.opacity(0.35), radius: 10, y: 8)
+                    .offset(y: bob ? -4 : 2)
+                    .animation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true), value: bob)
+                    .onAppear { bob = true }
+            } else {
+                HeroOrb().opacity(0.9).padding(30)
+            }
+        }
+        .task(id: "\(versionKey ?? "")-\(gender)") {
+            guard let name = TrainerArt.name(versionKey: versionKey, gender: gender) else { image = nil; return }
+            image = await TrainerArtStore.shared.image(name)
+        }
+    }
+}
+
 struct TrainerView: View {
     @Environment(AppModel.self) private var model
     @State private var t: TrainerData?
     @State private var name = ""
     @State private var money = ""
+    @State private var tid = ""
+    @State private var sid = ""
+    @State private var gender = 0
+    @State private var hours = 0
+    @State private var minutes = 0
+    @State private var seconds = 0
+    @State private var language = 0
+    @State private var badges = 0
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 Header(title: "Allenatore", subtitle: "Dati del giocatore nel salvataggio", symbol: "person.text.rectangle.fill", tint: AppSection.trainer.tint)
                 if let t {
-                    TrainerCard(t: t)
-                        .frame(maxWidth: 560)
-                    Card(title: "Modifica", symbol: "pencil", tint: .teal) {
-                        VStack(spacing: 12) {
-                            HStack {
-                                Text("Nome").foregroundStyle(.secondary).frame(width: 90, alignment: .leading)
-                                TextField("Nome", text: $name).textFieldStyle(.roundedBorder)
-                                Text("max \(t.maxOtLength)").font(.caption).foregroundStyle(.tertiary)
-                            }
-                            HStack {
-                                Text("Soldi").foregroundStyle(.secondary).frame(width: 90, alignment: .leading)
-                                TextField("Soldi", text: $money).textFieldStyle(.roundedBorder)
-                                Button("Massimo") { money = "\(t.maxMoney)" }.buttonStyle(.glass).controlSize(.small)
-                            }
-                            HStack {
-                                Spacer()
-                                Button("Applica") {
-                                    Task {
-                                        var p: [String: Any] = ["ot": name]
-                                        if let m = Int(money) { p["money"] = m }
-                                        if let nt = await model.setTrainer(p) { self.t = nt; model.toast(.success, "Dati allenatore aggiornati") }
-                                    }
-                                }
-                                .buttonStyle(.glassProminent)
-                            }
-                        }
+                    TrainerCard(t: t, previewName: name, previewGender: gender)
+                        .frame(maxWidth: 620)
+                    HStack(alignment: .top, spacing: 16) {
+                        identity(t)
+                        progress(t)
                     }
-                    .frame(maxWidth: 560)
+                    .frame(maxWidth: 900)
+                    HStack {
+                        Button {
+                            model.section = .advanced
+                        } label: { Label("Tutti gli altri campi del salvataggio…", systemImage: "slider.horizontal.below.square.and.square.filled") }
+                        .buttonStyle(.glass)
+                        Spacer()
+                        Button("Ripristina") { load(t) }.buttonStyle(.glass)
+                        Button { Task { await apply(t) } } label: { Label("Applica modifiche", systemImage: "checkmark") }
+                            .buttonStyle(.glassProminent)
+                            .keyboardShortcut(.return, modifiers: .command)
+                    }
+                    .frame(maxWidth: 900)
                 }
             }
             .padding(26)
         }
-        .task {
+        .task(id: model.save?.path) {
             t = await model.trainer()
-            name = t?.ot ?? ""
-            money = t.map { "\($0.money)" } ?? ""
+            if let t { load(t) }
+        }
+    }
+
+    private func load(_ t: TrainerData) {
+        name = t.ot; money = "\(t.money)"; tid = "\(t.tid)"; sid = "\(t.sid)"
+        gender = t.gender; hours = t.hours; minutes = t.minutes; seconds = t.seconds
+        language = t.language; badges = t.badges?.value ?? 0
+    }
+
+    private func row<C: View>(_ label: String, @ViewBuilder _ c: () -> C) -> some View {
+        HStack {
+            Text(label).foregroundStyle(.secondary).frame(width: 110, alignment: .leading)
+            c()
+        }
+    }
+
+    private func identity(_ t: TrainerData) -> some View {
+        Card(title: "Identità", symbol: "person.crop.circle.fill", tint: .teal) {
+            VStack(spacing: 12) {
+                row("Nome (OT)") {
+                    TextField("Nome", text: $name).textFieldStyle(.roundedBorder)
+                    Text("\(name.count)/\(t.maxOtLength)").font(.caption.monospacedDigit()).foregroundStyle(name.count > t.maxOtLength ? .red : .secondary)
+                }
+                if t.hasGender ?? true {
+                    row("Personaggio") {
+                        Picker("", selection: $gender) {
+                            Label("Ragazzo", systemImage: "figure.stand").tag(0)
+                            Label("Ragazza", systemImage: "figure.stand.dress").tag(1)
+                        }
+                        .pickerStyle(.segmented).labelsHidden()
+                    }
+                }
+                row(t.idFormat == "6" ? "ID (6 cifre)" : "ID allenatore") {
+                    TextField("ID", text: $tid).textFieldStyle(.roundedBorder).monospacedDigit()
+                    Text("max \(t.tidMax ?? 65535)").font(.caption).foregroundStyle(.tertiary)
+                }
+                if t.hasSid ?? true {
+                    row("ID segreto") {
+                        TextField("SID", text: $sid).textFieldStyle(.roundedBorder).monospacedDigit()
+                        Text("max \(t.sidMax ?? 65535)").font(.caption).foregroundStyle(.tertiary)
+                    }
+                }
+                if let langs = t.languages, !langs.isEmpty {
+                    row("Lingua") {
+                        Picker("", selection: $language) {
+                            ForEach(langs, id: \.v) { Text($0.t).tag($0.v) }
+                        }
+                        .labelsHidden()
+                    }
+                }
+                Text("Cambiare ID o ID segreto rende \"non tuoi\" i Pokémon già catturati (scambio): fallo solo se sai cosa stai facendo.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func progress(_ t: TrainerData) -> some View {
+        Card(title: "Progressi", symbol: "clock.fill", tint: .orange) {
+            VStack(spacing: 12) {
+                row("Soldi") {
+                    TextField("Soldi", text: $money).textFieldStyle(.roundedBorder).monospacedDigit()
+                    Button("Max") { money = "\(t.maxMoney)" }.buttonStyle(.glass).controlSize(.small)
+                }
+                row("Tempo di gioco") {
+                    Stepper(value: $hours, in: 0...(t.maxHours ?? 999)) { Text("\(hours) h").monospacedDigit().frame(width: 52, alignment: .trailing) }
+                    Stepper(value: $minutes, in: 0...59) { Text("\(minutes) m").monospacedDigit().frame(width: 40, alignment: .trailing) }
+                    Stepper(value: $seconds, in: 0...59) { Text("\(seconds) s").monospacedDigit().frame(width: 36, alignment: .trailing) }
+                }
+                if let b = t.badges {
+                    row("Medaglie") {
+                        HStack(spacing: 5) {
+                            ForEach(0..<b.count, id: \.self) { i in
+                                let on = badges & (1 << i) != 0
+                                Button {
+                                    badges ^= (1 << i)
+                                } label: {
+                                    Image(systemName: on ? "seal.fill" : "seal")
+                                        .font(.system(size: 17))
+                                        .foregroundStyle(on ? AnyShapeStyle(LinearGradient(colors: [.yellow, .orange], startPoint: .top, endPoint: .bottom)) : AnyShapeStyle(.tertiary))
+                                }
+                                .buttonStyle(.plain)
+                                .help("Medaglia \(i + 1)")
+                            }
+                            Button("Tutte") { badges = (1 << b.count) - 1 }.buttonStyle(.glass).controlSize(.small)
+                        }
+                    }
+                }
+                if let seen = t.seenCount, let caught = t.caughtCount, seen + caught > 0 {
+                    row("Pokédex") {
+                        Text("\(seen) visti · \(caught) catturati").foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Apri") { model.section = .pokedex }.buttonStyle(.glass).controlSize(.small)
+                    }
+                }
+            }
+        }
+    }
+
+    private func apply(_ t: TrainerData) async {
+        var p: [String: Any] = ["ot": name, "hours": hours, "minutes": minutes, "seconds": seconds]
+        if let m = Int(money) { p["money"] = m }
+        if t.hasGender ?? true { p["gender"] = gender }
+        if let v = Int(tid) { p["tid"] = v }
+        if (t.hasSid ?? true), let v = Int(sid) { p["sid"] = v }
+        if !(t.languages ?? []).isEmpty { p["language"] = language }
+        if t.badges != nil { p["badges"] = badges }
+        if let nt = await model.setTrainer(p) {
+            self.t = nt
+            load(nt)
+            model.toast(.success, "Dati allenatore aggiornati")
         }
     }
 }
 
 private struct TrainerCard: View {
     let t: TrainerData
+    var previewName: String
+    var previewGender: Int
     @State private var tilt = false
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             RoundedRectangle(cornerRadius: 26, style: .continuous)
                 .fill(LinearGradient(colors: [Color(hex: 0x2CC5A4), Color(hex: 0x3F7BFF), Color(hex: 0x8A4DFF)], startPoint: .topLeading, endPoint: .bottomTrailing))
-            Circle().fill(.white.opacity(0.10)).frame(width: 260).offset(x: 330, y: -90)
-            Circle().fill(.white.opacity(0.07)).frame(width: 180).offset(x: 380, y: 120)
-            HeroOrb().frame(width: 70, height: 70).opacity(0.9).offset(x: 450, y: 20)
-            VStack(alignment: .leading, spacing: 16) {
-                Text("TRAINER CARD").font(.system(size: 11, weight: .heavy, design: .rounded)).tracking(2).opacity(0.8)
-                Text(t.ot).font(.system(size: 34, weight: .heavy, design: .rounded))
-                HStack(spacing: 28) {
-                    field("ID", "\(t.tid)")
-                    field("Gioco", t.game)
+            Circle().fill(.white.opacity(0.10)).frame(width: 260).offset(x: 360, y: -90)
+            Circle().fill(.white.opacity(0.07)).frame(width: 180).offset(x: 420, y: 120)
+            HStack(alignment: .bottom) {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("TRAINER CARD").font(.system(size: 11, weight: .heavy, design: .rounded)).tracking(2).opacity(0.8)
+                    Text(previewName.isEmpty ? t.ot : previewName).font(.system(size: 34, weight: .heavy, design: .rounded)).lineLimit(1)
+                    HStack(spacing: 28) {
+                        field("ID", "\(t.tid)")
+                        field("Gioco", t.game)
+                    }
+                    HStack(spacing: 28) {
+                        field("Soldi", "₽ \(t.money.formatted())")
+                        field("Tempo di gioco", "\(t.hours)h \(t.minutes)m")
+                    }
                 }
-                HStack(spacing: 28) {
-                    field("Soldi", "₽ \(t.money.formatted())")
-                    field("Tempo di gioco", "\(t.hours)h \(t.minutes)m")
-                }
+                Spacer(minLength: 0)
+                TrainerSprite(versionKey: t.versionKey, gender: previewGender)
+                    .frame(width: 170, height: 200)
+                    .id(previewGender)
+                    .transition(.scale.combined(with: .opacity))
             }
             .foregroundStyle(.white)
             .padding(26)
+            .animation(Theme.spring, value: previewGender)
         }
-        .frame(height: 240)
+        .frame(height: 250)
         .clipShape(.rect(cornerRadius: 26, style: .continuous))
         .shadow(color: Color(hex: 0x3F7BFF).opacity(0.35), radius: 20, y: 12)
         .rotation3DEffect(.degrees(tilt ? 2.5 : -2.5), axis: (x: 0.4, y: 1, z: 0))
