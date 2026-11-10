@@ -45,30 +45,27 @@ struct BagView: View {
         loading = false
     }
 
+    /// Pouch tabs wrap onto more lines when they don't fit, so every pouch stays reachable.
     private var pouchBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            GlassEffectContainer(spacing: 8) {
-                HStack(spacing: 8) {
-                    ForEach(Array(pouches.enumerated()), id: \.offset) { i, p in
-                        let on = i == pouchIndex
-                        Button {
-                            withAnimation(Theme.spring) { pouchIndex = i }
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: p.symbol)
-                                Text(p.name)
-                                Text("\(p.items.count)")
-                                    .font(.system(size: 10.5, weight: .bold, design: .rounded))
-                                    .padding(.horizontal, 6).padding(.vertical, 1)
-                                    .background(.primary.opacity(0.1), in: Capsule())
-                            }
-                            .font(.system(size: 12.5, weight: on ? .bold : .medium, design: .rounded))
-                            .padding(.horizontal, 4)
-                        }
-                        .buttonStyle(.glass)
-                        .tint(on ? AppSection.bag.tint : nil)
+        FlowLayout(spacing: 6, lineSpacing: 6) {
+            ForEach(Array(pouches.enumerated()), id: \.offset) { i, p in
+                let on = i == pouchIndex
+                Button {
+                    withAnimation(Theme.spring) { pouchIndex = i }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: p.symbol)
+                        Text(p.name).lineLimit(1)
+                        Text("\(p.items.count)")
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .padding(.horizontal, 5).padding(.vertical, 1)
+                            .background(.primary.opacity(0.1), in: Capsule())
                     }
+                    .font(.system(size: 12, weight: on ? .bold : .medium, design: .rounded))
                 }
+                .buttonStyle(.glass)
+                .controlSize(.small)
+                .tint(on ? AppSection.bag.tint : nil)
             }
         }
     }
@@ -157,7 +154,7 @@ struct BagView: View {
     private func add(_ a: AllowedItem) {
         guard var p = pouch else { return }
         let max = p.maxCount
-        p.items.append(BagItem(id: a.v, count: 1, name: a.t, key: a.key, max: max))
+        p.items.append(BagItem(id: a.v, count: 1, name: a.t, key: a.key, sid: a.sid, max: max))
         withAnimation(Theme.spring) { pouches[pouchIndex] = p }
         dirty = true
     }
@@ -188,7 +185,7 @@ private struct BagItemTile: View {
         HStack(spacing: 10) {
             ZStack {
                 Circle().fill(RadialGradient(colors: [tint.opacity(0.28), tint.opacity(0.04)], center: .center, startRadius: 1, endRadius: 26))
-                ItemIcon(key: item.key).frame(width: 34, height: 34)
+                ItemIcon(key: item.key, id: item.sid).frame(width: 34, height: 34)
                     .scaleEffect(hover ? 1.15 : 1)
                     .rotationEffect(.degrees(hover ? -6 : 0))
             }
@@ -254,7 +251,7 @@ struct ItemPicker: View {
             List(filtered) { it in
                 Button { onPick(it); dismiss() } label: {
                     HStack(spacing: 10) {
-                        ItemIcon(key: it.key).frame(width: 24, height: 24)
+                        ItemIcon(key: it.key, id: it.sid).frame(width: 24, height: 24)
                         Text(it.t)
                         Spacer()
                     }
@@ -266,5 +263,51 @@ struct ItemPicker: View {
         }
         .frame(width: 320, height: 420)
         .onAppear { focused = true }
+    }
+}
+
+
+/// Lays children left to right and wraps to a new line when the row is full.
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+    var lineSpacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? .infinity
+        let rows = arrange(width: width, subviews: subviews)
+        let height = rows.reduce(0) { $0 + $1.height } + lineSpacing * CGFloat(max(0, rows.count - 1))
+        let used = rows.map(\.width).max() ?? 0
+        return CGSize(width: proposal.width ?? used, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for row in arrange(width: bounds.width, subviews: subviews) {
+            var x = bounds.minX
+            for i in row.items {
+                let size = subviews[i].sizeThatFits(.unspecified)
+                subviews[i].place(at: CGPoint(x: x, y: y + (row.height - size.height) / 2), proposal: ProposedViewSize(size))
+                x += size.width + spacing
+            }
+            y += row.height + lineSpacing
+        }
+    }
+
+    private struct Row { var items: [Int] = []; var width: CGFloat = 0; var height: CGFloat = 0 }
+
+    private func arrange(width: CGFloat, subviews: Subviews) -> [Row] {
+        var rows: [Row] = [Row()]
+        for i in subviews.indices {
+            let size = subviews[i].sizeThatFits(.unspecified)
+            let extra = rows[rows.count - 1].items.isEmpty ? size.width : size.width + spacing
+            if rows[rows.count - 1].width + extra > width, !rows[rows.count - 1].items.isEmpty {
+                rows.append(Row())
+            }
+            let isFirst = rows[rows.count - 1].items.isEmpty
+            rows[rows.count - 1].items.append(i)
+            rows[rows.count - 1].width += isFirst ? size.width : size.width + spacing
+            rows[rows.count - 1].height = max(rows[rows.count - 1].height, size.height)
+        }
+        return rows.filter { !$0.items.isEmpty }
     }
 }

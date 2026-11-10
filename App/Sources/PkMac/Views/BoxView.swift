@@ -386,7 +386,8 @@ struct SlotMenu: View {
             Button { model.selection = slot.ref; model.showCreate = true } label: { Label(L("Crea Pokémon qui…"), systemImage: "plus") }
             Button { model.showShowdownImport = true } label: { Label(L("Importa set Showdown…"), systemImage: "doc.on.clipboard") }
         } else {
-            Button { Task { await model.legalize(slot.ref) } } label: { Label(L("Rendi legale (Auto Legality)"), systemImage: "wand.and.stars") }
+            Button { Task { await model.legalize(slot.ref) } } label: { Label(L("Rendi legale…"), systemImage: "wand.and.stars") }
+            Button { Task { await model.legalize(slot.ref, mine: true) } } label: { Label(L("Rendi mio…"), systemImage: "person.crop.circle.badge.checkmark") }
             Button { Task { await model.copyShowdown(slot.ref) } } label: { Label(L("Copia set Showdown"), systemImage: "doc.on.doc") }
             Button { model.exportPk(slot.ref) } label: { Label(L("Esporta file .pk…"), systemImage: "square.and.arrow.up") }
             Divider()

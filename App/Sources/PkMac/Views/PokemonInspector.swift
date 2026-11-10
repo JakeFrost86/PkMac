@@ -334,6 +334,11 @@ private struct SummaryTab: View {
     let detail: PokemonDetail
     @State private var level: Double = 1
     @State private var friendship: Double = 0
+    @State private var height: Double = 0
+    @State private var weight: Double = 0
+    @State private var scale: Double = 0
+    @State private var pid = ""
+    @State private var ec = ""
 
     var body: some View {
         let lists = model.lists
@@ -404,14 +409,68 @@ private struct SummaryTab: View {
                 }
             }
             .disabled(!detail.canEdit)
+
+            Card(title: L("Dimensioni e identificativi"), symbol: "ruler", tint: PokeType(key: s.primaryType).color) {
+                VStack(spacing: 10) {
+                    if detail.height != nil {
+                        ValueSlider(label: L("Altezza"), value: $height, range: 0...255, tint: .teal) {
+                            Task { await model.update(["height": Int(height)]) }
+                        }
+                        ValueSlider(label: L("Peso"), value: $weight, range: 0...255, tint: .brown) {
+                            Task { await model.update(["weight": Int(weight)]) }
+                        }
+                    }
+                    if detail.scale != nil {
+                        ValueSlider(label: L("Scala"), value: $scale, range: 0...255, tint: .indigo) {
+                            Task { await model.update(["scale": Int(scale)]) }
+                        }
+                    }
+                    hexRow("PID", $pid, key: "pid", reroll: "rerollPid", help: L("Nuovo PID casuale (mantiene il sesso)"))
+                    if detail.format >= 6 {
+                        hexRow("EC", $ec, key: "ec", reroll: "rerollEc", help: L("Nuova encryption constant casuale"))
+                    }
+                    if detail.height != nil {
+                        Text(L("Altezza e peso vanno da 0 a 255 (128 è la media). In molti giochi derivano dallo stesso seme di PID e IV: cambiarli a mano può rendere il Pokémon non legale."))
+                            .font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            .disabled(!detail.canEdit)
         }
         .onAppear { sync() }
         .onChange(of: detail.summary.level) { _, _ in sync() }
+        .onChange(of: detail.pid) { _, _ in sync() }
+        .onChange(of: detail.encryptionConstant) { _, _ in sync() }
+        .onChange(of: detail.height) { _, _ in sync() }
+        .onChange(of: detail.weight) { _, _ in sync() }
+        .onChange(of: detail.scale) { _, _ in sync() }
+    }
+
+    private func hexRow(_ label: String, _ text: Binding<String>, key: String, reroll: String, help: String) -> some View {
+        HStack {
+            Text(label).foregroundStyle(.secondary)
+            Spacer()
+            TextField(label, text: text)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 110)
+                .multilineTextAlignment(.trailing)
+                .font(.system(size: 12, design: .monospaced))
+                .onSubmit { Task { await model.update([key: text.wrappedValue]) } }
+            Button { Task { await model.update([reroll: true]) } } label: { Image(systemName: "dice") }
+                .buttonStyle(.glass).controlSize(.small).help(help)
+        }
+        .font(.system(size: 12.5, design: .rounded))
     }
 
     private func sync() {
         level = Double(detail.summary.level ?? 1)
         friendship = Double(detail.friendship)
+        height = Double(detail.height ?? 0)
+        weight = Double(detail.weight ?? 0)
+        scale = Double(detail.scale ?? 0)
+        pid = detail.pid
+        ec = detail.encryptionConstant
     }
 
     private var natureHint: String {
@@ -591,6 +650,7 @@ private struct OriginTab: View {
     @State private var metLevel = ""
     @State private var pid = ""
     @State private var ec = ""
+    @State private var home = ""
     @State private var games: [ListItem] = []
     @State private var metLocations: [ListItem] = []
     @State private var eggLocations: [ListItem] = []
@@ -604,6 +664,7 @@ private struct OriginTab: View {
                 encounter(o)
                 if o.hasEgg { egg(o) }
                 if o.hasHandler { handler(o) }
+                if o.hasHomeTracker == true { homeCard(o) }
                 technical(o)
             }
         }
@@ -617,6 +678,7 @@ private struct OriginTab: View {
         guard let o else { return }
         ot = detail.ot; tid = "\(o.tid)"; sid = "\(o.sid)"; ht = o.htName
         metLevel = "\(o.metLevel)"; pid = o.pid; ec = o.ec
+        home = o.homeTracker ?? ""
     }
 
     private func loadLists() async {
@@ -683,7 +745,13 @@ private struct OriginTab: View {
     private func name(_ list: [ListItem], _ v: Int) -> String { list.first { $0.v == v }?.t ?? (v == 0 ? "—" : "#\(v)") }
 
     private func trainer(_ o: OriginData) -> some View {
-        Card(title: L("Allenatore originale"), symbol: "person.crop.circle", tint: .teal) {
+        Card(title: L("Allenatore originale"), symbol: "person.crop.circle", tint: .teal, accessory: AnyView(
+            Button { Task { await model.legalize(detail.summary.ref, mine: true) } } label: {
+                Label(L("Rendi mio"), systemImage: "person.crop.circle.badge.checkmark")
+            }
+            .buttonStyle(.glass).controlSize(.small)
+            .help(L("Mette nome, sesso, ID e lingua dell'allenatore del salvataggio, poi lo rende legale. Prima di applicare ti mostro cosa cambia."))
+        )) {
             VStack(spacing: 8) {
                 field(L("Nome"), $ot, key: "ot")
                 if o.hasOtGender { genderPicker(L("Sesso"), o.otGender, key: "otGender") }
@@ -741,6 +809,39 @@ private struct OriginTab: View {
                 .font(.system(size: 13, design: .rounded))
                 field(L("Nome"), $ht, key: "htName")
                 genderPicker(L("Sesso"), o.htGender, key: "htGender")
+            }
+        }
+    }
+
+    /// HOME tracker: written only by Pokémon HOME. Shown and editable, never generated.
+    private func homeCard(_ o: OriginData) -> some View {
+        let value = UInt64(o.homeTracker ?? "0", radix: 16) ?? 0
+        return Card(title: L("Pokémon HOME"), symbol: "house", tint: .green) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(L("Codice HOME")).foregroundStyle(.secondary)
+                    Spacer()
+                    TextField(L("Codice HOME"), text: $home)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 170)
+                        .multilineTextAlignment(.trailing)
+                        .font(.system(size: 12, design: .monospaced))
+                        .onSubmit { set(["homeTracker": home]) }
+                }
+                .font(.system(size: 13, design: .rounded))
+                Label(value != 0 ? L("Questo Pokémon è passato da Pokémon HOME.") : L("Nessun codice: questo Pokémon non è mai passato da Pokémon HOME."),
+                      systemImage: value != 0 ? "checkmark.seal.fill" : "minus.circle")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(value != 0 ? AnyShapeStyle(.green) : AnyShapeStyle(.secondary))
+                if o.homeTrackerMissing == true {
+                    Label(L("PKHeX si aspetta un codice: questo Pokémon è in un gioco diverso da quello d'origine, e nei giochi veri ci arriva solo passando da HOME."),
+                          systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption).foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text(L("Lo scrive solo Pokémon HOME, la prima volta che il Pokémon ci entra, e serve a HOME per riconoscerlo. PkMac non lo genera mai: un codice inventato non corrisponderebbe a nessuno di quelli assegnati da HOME. Modificalo solo per rimettere un valore vero, per esempio copiato da un backup."))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -899,4 +1000,81 @@ extension Notification.Name {
 
 enum InspectorTour {
     static let tabs = ["summary", "stats", "moves", "origin", "ribbons", "advanced", "summary"]
+}
+
+
+/// What "Make legal" / "Make mine" is about to change, old value → new value, before anything is written.
+struct LegalizePreviewSheet: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    let pending: PendingLegalize
+
+    private var p: LegalizePreview { pending.preview }
+
+    private var methodText: String {
+        switch p.method {
+        case "suggestions": L("Bastano i suggerimenti di PKHeX (mosse, mosse ricordabili, dati d'incontro).")
+        case "seed": L("Ricostruito dal seme della sua encryption constant: torna esattamente come l'ha generato il gioco.")
+        case "alm": L("Rigenerato da Auto Legality: PID, IV e altri valori casuali vengono ricreati da capo.")
+        case "rebuild": L("Ricreato da un incontro legale della stessa specie, tenendo il più possibile (soprannome, natura, IV, EV).")
+        default: p.legal ? L("Nessuna modifica necessaria.") : L("Non ho trovato un modo per renderlo legale.")
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                Image(systemName: p.mine ? "person.crop.circle.badge.checkmark" : "wand.and.stars")
+                    .font(.system(size: 24)).foregroundStyle(p.legal ? .green : .orange)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(p.mine ? L("Rendi mio") : L("Rendi legale")).font(.system(size: 17, weight: .bold, design: .rounded))
+                    Text(p.legal ? L("Dopo queste modifiche il Pokémon sarà legale.") : L("Anche con queste modifiche il Pokémon non sarà legale."))
+                        .font(.system(size: 12)).foregroundStyle(p.legal ? AnyShapeStyle(.secondary) : AnyShapeStyle(.orange))
+                }
+            }
+            Label(methodText, systemImage: "info.circle")
+                .font(.system(size: 12)).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if p.changes.isEmpty {
+                Text(L("Nessun valore cambia.")).foregroundStyle(.secondary)
+            } else {
+                Text(L("Cosa cambia (\(p.changes.count))")).font(.system(size: 12, weight: .bold, design: .rounded)).foregroundStyle(.secondary)
+                ScrollView {
+                    Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 7) {
+                        ForEach(p.changes, id: \.self) { c in
+                            GridRow {
+                                Text(c.field).foregroundStyle(.secondary)
+                                Text(c.from).strikethrough(true, color: .red.opacity(0.6)).foregroundStyle(.secondary)
+                                    .textSelection(.enabled)
+                                Image(systemName: "arrow.right").foregroundStyle(.tertiary)
+                                Text(c.to).fontWeight(.semibold).textSelection(.enabled)
+                            }
+                            .font(.system(size: 12, design: .rounded))
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 300)
+            }
+
+            if !p.problems.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L("Cosa resta da sistemare")).font(.system(size: 12, weight: .bold, design: .rounded)).foregroundStyle(.orange)
+                    ForEach(p.problems, id: \.self) { Text("• " + $0).font(.system(size: 11.5)).foregroundStyle(.secondary) }
+                }
+            }
+
+            HStack {
+                Spacer()
+                Button(L("Annulla")) { model.pendingLegalize = nil; dismiss() }
+                    .keyboardShortcut(.cancelAction).buttonStyle(.glass)
+                Button(p.legal ? L("Applica") : L("Applica comunque")) { Task { await model.applyPendingLegalize() } }
+                    .keyboardShortcut(.defaultAction).buttonStyle(.glassProminent)
+                    .disabled(p.changes.isEmpty)
+            }
+        }
+        .padding(22)
+        .frame(width: 560)
+    }
 }

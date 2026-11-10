@@ -11,6 +11,8 @@ struct SettingsView: View {
                 .tabItem { Label(L("Nomi file"), systemImage: "textformat") }
             GeneralSettings()
                 .tabItem { Label(L("Generale"), systemImage: "gearshape") }
+            BackupSettings()
+                .tabItem { Label(L("Backup"), systemImage: "clock.arrow.circlepath") }
             AboutSettings()
                 .tabItem { Label(L("Info"), systemImage: "info.circle") }
         }
@@ -257,3 +259,72 @@ private struct AboutSettings: View {
         .font(.system(size: 12))
     }
 }
+
+
+/// Backups of the saves: how many to keep, for how long, and cleanup.
+private struct BackupSettings: View {
+    @Environment(AppModel.self) private var model
+    @AppStorage(BackupPolicy.keepKey) private var keep = 20
+    @AppStorage(BackupPolicy.daysKey) private var days = 0
+    @State private var stats: BackupStats?
+    @State private var message: String?
+    @State private var confirmDelete = false
+
+    var body: some View {
+        Form {
+            SwiftUI.Section {
+                Picker(L("Backup da tenere per ogni salvataggio"), selection: $keep) {
+                    ForEach([3, 5, 10, 20, 40, 100], id: \.self) { Text("\($0)").tag($0) }
+                    Text(L("Tutti")).tag(0)
+                }
+                Picker(L("Elimina i backup più vecchi di"), selection: $days) {
+                    Text(L("Mai")).tag(0)
+                    Text(L("7 giorni")).tag(7)
+                    Text(L("30 giorni")).tag(30)
+                    Text(L("90 giorni")).tag(90)
+                    Text(L("6 mesi")).tag(180)
+                    Text(L("1 anno")).tag(365)
+                }
+                Text(L("PkMac fa un backup prima di ogni salvataggio e uno al giorno quando apri un file. Ogni volta che ne crea uno nuovo elimina quelli in più per quel salvataggio, secondo queste regole. Il backup appena creato non viene mai eliminato."))
+                    .font(.caption).foregroundStyle(.secondary)
+            } header: { Text(L("Regole")) }
+
+            SwiftUI.Section {
+                if let stats {
+                    LabeledContent(L("Backup sul Mac"), value: L("\(stats.count) file di \(stats.saves) salvataggi"))
+                    LabeledContent(L("Spazio occupato"), value: ByteCountFormatter.string(fromByteCount: stats.size, countStyle: .file))
+                    if let o = stats.oldest, let d = ISO8601DateFormatter.flexible.date(from: o) {
+                        LabeledContent(L("Il più vecchio"), value: d.formatted(date: .abbreviated, time: .shortened))
+                    }
+                } else {
+                    ProgressView().controlSize(.small)
+                }
+                HStack {
+                    Button { Task { if let r = await model.pruneBackups() { stats = r.1; message = L("Eliminati \(r.0) backup in più.") } } } label: {
+                        Label(L("Pulisci ora"), systemImage: "wand.and.sparkles")
+                    }
+                    Button { if let s = stats { NSWorkspace.shared.open(URL(fileURLWithPath: s.root)) } } label: {
+                        Label(L("Apri cartella"), systemImage: "folder")
+                    }
+                    Spacer()
+                    Button(role: .destructive) { confirmDelete = true } label: {
+                        Label(L("Elimina tutti"), systemImage: "trash")
+                    }
+                }
+                if let message { Text(message).font(.caption).foregroundStyle(.secondary) }
+            } header: { Text(L("Spazio")) }
+        }
+        .formStyle(.grouped)
+        .task { stats = await model.backupStats() }
+        .onChange(of: keep) { _, _ in Task { await model.applyBackupPolicy(); stats = await model.backupStats() } }
+        .onChange(of: days) { _, _ in Task { await model.applyBackupPolicy(); stats = await model.backupStats() } }
+        .confirmationDialog(L("Eliminare tutti i backup?"), isPresented: $confirmDelete) {
+            Button(L("Elimina tutti i backup"), role: .destructive) {
+                Task { if let r = await model.deleteAllBackups() { stats = r.1; message = L("Eliminati \(r.0) backup.") } }
+            }
+        } message: {
+            Text(L("Verranno cancellati per sempre i backup di tutti i salvataggi. I salvataggi veri non vengono toccati."))
+        }
+    }
+}
+

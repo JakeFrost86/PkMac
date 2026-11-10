@@ -24,6 +24,7 @@ struct SlotSummary: Codable, Hashable, Identifiable, Sendable {
     var locked: Bool?
     var species: Int?
     var form: Int?
+    var formArg: Int?
     var formKey: String?
     var speciesName: String?
     var nickname: String?
@@ -47,7 +48,7 @@ struct SlotSummary: Codable, Hashable, Identifiable, Sendable {
     var displayName: String { nickname ?? speciesName ?? "" }
     var sprite: SpriteKey? {
         guard !empty, let species else { return nil }
-        return SpriteKey(species: species, formKey: formKey ?? "", shiny: shiny ?? false, female: gender == 1, egg: isEgg ?? false)
+        return SpriteKey(species: species, formKey: formKey ?? "", shiny: shiny ?? false, female: gender == 1, egg: isEgg ?? false, form: form ?? 0, formArg: formArg ?? 0)
     }
 }
 
@@ -182,6 +183,9 @@ struct PokemonDetail: Codable, Sendable {
     var teraType: String?
     var teraTypeIndex: Int?
     var pokerus: Bool
+    var height: Int?
+    var weight: Int?
+    var scale: Int?
     var legality: LegalityInfo
     var showdown: String
     var fileName: String
@@ -294,6 +298,27 @@ struct ImportResult: Codable, Hashable, Identifiable, Sendable {
     var id: String { "\(name)-\(ref?.slot ?? -1)-\(ref?.box ?? -1)-\(status)" }
 }
 
+struct LegalizePreview: Codable, Sendable {
+    struct Change: Codable, Hashable, Sendable { var field: String; var from: String; var to: String }
+    var before: Bool
+    var legal: Bool
+    /// none, suggestions, seed, alm, rebuild
+    var method: String
+    var mine: Bool
+    var changes: [Change]
+    var problems: [String]
+}
+
+struct PendingLegalize: Identifiable, Sendable {
+    let id = UUID()
+    var ref: SlotRef
+    var preview: LegalizePreview
+}
+
+struct LegalizeApplied: Codable, Sendable {
+    var legal: Bool
+}
+
 struct LegalizeResult: Codable, Sendable {
     var before: Bool
     var after: Bool
@@ -376,7 +401,15 @@ struct HomeDumpResult: Codable, Sendable {
 
 struct TrainerData: Codable, Sendable {
     struct Lang: Codable, Hashable, Sendable { var v: Int; var t: String }
-    struct Badges: Codable, Hashable, Sendable { var value: Int; var count: Int }
+    struct Badges: Codable, Hashable, Sendable {
+        var value: Int; var count: Int; var sprites: [Int?]?
+        /// Shown but changed only through game events (Scarlet/Violet).
+        var readOnly: Bool?
+        /// "galar": one badge case made of eight pieces (Sword/Shield).
+        var layout: String?
+    }
+    /// Trainer card stamps (Sun/Moon, Ultra Sun/Ultra Moon).
+    struct Stamps: Codable, Hashable, Sendable { var value: Int; var names: [String] }
     var ot: String
     var maxOtLength: Int
     var gender: Int
@@ -401,6 +434,7 @@ struct TrainerData: Codable, Sendable {
     var seenCount: Int?
     var caughtCount: Int?
     var badges: Badges?
+    var stamps: Stamps?
 }
 
 struct UndoResult: Codable, Sendable {
@@ -432,6 +466,8 @@ struct BagItem: Codable, Hashable, Identifiable, Sendable {
     var count: Int
     var name: String
     var key: String?
+    /// Item ID in today's numbering, for PKHeX's own item sprites.
+    var sid: Int?
     var max: Int
 }
 
@@ -439,6 +475,7 @@ struct AllowedItem: Codable, Hashable, Identifiable, Sendable {
     var v: Int
     var t: String
     var key: String?
+    var sid: Int?
     var id: Int { v }
 }
 
@@ -541,10 +578,12 @@ struct GiftCard: Codable, Hashable, Sendable {
     var used: Bool?
     var canAlbum: Bool?
     var canReceive: Bool?
+    /// LanguageIDs the card can be received in; empty = any language.
+    var languages: [Int]?
 
     var sprite: SpriteKey? {
         guard isEntity == true, let species, species > 0 else { return nil }
-        return SpriteKey(species: species, formKey: formKey ?? "", shiny: shiny ?? false, female: false, egg: egg ?? false)
+        return SpriteKey(species: species, formKey: formKey ?? "", shiny: shiny ?? false, female: false, egg: egg ?? false, form: form ?? 0)
     }
     var displayTitle: String {
         let t = (title ?? "").trimmingCharacters(in: .whitespaces)
@@ -728,6 +767,9 @@ struct OriginData: Codable, Hashable, Sendable {
     var ec: String
     var hasEc: Bool
     var maxOt: Int
+    var hasHomeTracker: Bool?
+    var homeTracker: String?
+    var homeTrackerMissing: Bool?
 }
 
 struct OriginLists: Codable, Sendable {

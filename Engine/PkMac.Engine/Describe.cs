@@ -28,6 +28,7 @@ public static class Describe
             species = pk.Species,
             form = pk.Form,
             formKey = FormKey(s, pk.Species, pk.Form, pk.Context),
+            formArg = pk is IFormArgument fa ? (int)fa.FormArgument : 0,
             speciesName = Name(s.Strings.Species, pk.Species),
             nickname = pk.IsEgg ? s.Strings.EggName : pk.Nickname,
             isNicknamed = pk.IsNicknamed,
@@ -129,6 +130,9 @@ public static class Describe
             teraType = tera,
             teraTypeIndex = teraIndex,
             pokerus = pk.IsPokerusInfected,
+            height = pk is IScaledSize hs ? (int?)hs.HeightScalar : null,
+            weight = pk is IScaledSize ws ? (int?)ws.WeightScalar : null,
+            scale = pk is IScaledSize3 ss ? (int?)ss.Scale : null,
             legality = new
             {
                 valid = la.Valid,
@@ -177,18 +181,22 @@ public static class Describe
         => type < s.English.types.Length ? s.English.types[type].ToLowerInvariant() : "normal";
 
     /// <summary>English form name, normalized for PokeAPI sprite lookup ("" for the base form).</summary>
+    /// <summary>
+    /// English form name used to pick the sprite. Also for form 0 when the species has several forms
+    /// (Vivillon's form 0 is Icy Snow, not the Meadow pattern of the base sprite).
+    /// </summary>
     public static string FormKey(Session s, ushort species, byte form, EntityContext context)
     {
-        if (form == 0)
-            return "";
         try
         {
             var forms = FormConverter.GetFormList(species, s.English.types, s.English.forms, GameInfo.GenderSymbolASCII, context);
+            if (form == 0 && forms.Length <= 1)
+                return "";
             if (form < forms.Length)
                 return forms[form].ToLowerInvariant();
         }
         catch { }
-        return form.ToString();
+        return form == 0 ? "" : form.ToString();
     }
 
     public static string[] FormNames(Session s, ushort species, EntityContext context)
@@ -249,10 +257,21 @@ public static class Describe
             ec = pk.EncryptionConstant.ToString("X8"),
             hasEc = gen >= 6,
             maxOt = pk.MaxStringLengthTrainer,
+            // HOME tracker: written only by Pokémon HOME (Switch formats). Never generated here.
+            hasHomeTracker = pk is IHomeTrack,
+            homeTracker = pk is IHomeTrack ht ? ht.Tracker.ToString("X16") : null,
+            homeTrackerMissing = pk is IHomeTrack { HasTracker: false } && HomeTrackerExpected(pk),
         };
     }
 
     /// <summary>Games and met locations for the origin editor.</summary>
+    /// <summary>True when PKHeX's legality check says this Pokémon must have come through HOME.</summary>
+    private static bool HomeTrackerExpected(PKM pk)
+    {
+        try { return new LegalityAnalysis(pk).Results.Any(r => r.Result == LegalityCheckResultCode.TransferTrackerMissing); }
+        catch { return false; }
+    }
+
     public static object OriginLists(Session s, int version, bool egg)
     {
         var sav = s.Sav;
@@ -270,7 +289,7 @@ public static class Describe
     public static string Name(IReadOnlyList<string> list, int index)
         => (uint)index < (uint)list.Count ? list[index] : $"#{index}";
 
-    private static string SafeReport(LegalityAnalysis la, string lang, bool verbose)
+    public static string SafeReport(LegalityAnalysis la, string lang, bool verbose)
     {
         try { return la.Report(lang, verbose); }
         catch

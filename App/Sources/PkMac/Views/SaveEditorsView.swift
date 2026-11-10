@@ -117,7 +117,7 @@ private struct DexTile: View {
         let t = PokeType(key: entry.types.first)
         VStack(spacing: 4) {
             ZStack(alignment: .topLeading) {
-                PokemonSprite(key: SpriteKey(species: entry.species, formKey: entry.formKey, shiny: false, female: false, egg: false), tint: t.color)
+                PokemonSprite(key: SpriteKey(species: entry.species, formKey: entry.formKey, shiny: false, female: false, egg: false, form: 0), tint: t.color)
                     .frame(width: 64, height: 64)
                     .saturation(entry.caught ? 1 : (entry.seen ? 0.35 : 0))
                     .brightness(entry.seen ? 0 : -0.6)
@@ -364,6 +364,7 @@ struct GiftsView: View {
     @State private var selected: GiftCard?
     @State private var lines: [String] = []
     @State private var kind = 0 // 0 all, 1 Pokémon, 2 items/others
+    @State private var region = "" // "" all, "any" valid everywhere, or a LanguageID
 
     var body: some View {
         HStack(alignment: .top, spacing: 18) {
@@ -453,8 +454,17 @@ struct GiftsView: View {
                 .background(.primary.opacity(0.05), in: Capsule())
                 Picker("", selection: $kind) { Text(L("Tutti")).tag(0); Text("Pokémon").tag(1); Text(L("Oggetti e altro")).tag(2) }
                     .pickerStyle(.segmented).labelsHidden().frame(width: 280)
+                Picker(selection: $region) {
+                    Text(L("Tutte le regioni")).tag("")
+                    Text(L("Valide in tutto il mondo")).tag("any")
+                    Divider()
+                    ForEach(GiftRegion.all, id: \.id) { r in Text(r.title).tag(String(r.id)) }
+                } label: { Image(systemName: "globe") }
+                .frame(width: 210)
+                .help(L("Le carte non registrano il paese di distribuzione, solo le lingue in cui si possono ricevere: il filtro usa quelle."))
             }
             .onChange(of: query) { _, _ in Task { try? await Task.sleep(for: .milliseconds(300)); await search() } }
+            .onChange(of: region) { _, _ in Task { await search() } }
             if let db {
                 Text(L("\(db.total) doni compatibili con \(model.save?.game ?? "questo gioco")") + (db.total > db.shown ? L(" · mostrati i primi \(db.shown), affina la ricerca") : ""))
                     .font(.caption).foregroundStyle(.secondary)
@@ -479,7 +489,7 @@ struct GiftsView: View {
     }
 
     private func search() async {
-        db = await model.giftDatabase(query: query)
+        db = await model.giftDatabase(query: query, region: region)
     }
 
     // Detail
@@ -504,6 +514,8 @@ struct GiftsView: View {
                     if let c = g.cardId, c > 0 { StatusBadge(kind: .info, text: "#\(c)") }
                     if g.shiny == true { StatusBadge(kind: .warn, text: L("Shiny")) }
                 }
+                Label(GiftRegion.describe(g.languages ?? []), systemImage: "globe")
+                    .font(.system(size: 12, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
                 ScrollView {
                     VStack(alignment: .leading, spacing: 3) {
                         ForEach(Array(lines.enumerated()), id: \.offset) { _, l in
@@ -603,11 +615,39 @@ private struct GiftRow: View {
                 }
             }
             Spacer(minLength: 0)
+            if let langs = card.languages, !langs.isEmpty {
+                Text(GiftRegion.codes(langs))
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .padding(.horizontal, 5).padding(.vertical, 2)
+                    .background(.primary.opacity(0.08), in: Capsule())
+                    .foregroundStyle(.secondary)
+                    .help(GiftRegion.describe(langs))
+            }
         }
         .padding(8)
         .background(AppSection.gifts.tint.opacity(selected ? 0.2 : (hover ? 0.1 : 0.05)), in: .rect(cornerRadius: 14, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(selected ? AppSection.gifts.tint : .clear, lineWidth: 1.5))
         .contentShape(.rect)
         .onHover { hover = $0 }
+    }
+}
+
+
+/// Regions shown by the gift filter, keyed by PKHeX LanguageID.
+enum GiftRegion {
+    static let all: [(id: Int, title: String)] = [
+        (1, L("Giappone")), (2, L("Inglese (USA, Europa, Australia)")), (3, L("Francese")), (4, L("Italiano")),
+        (5, L("Tedesco")), (7, L("Spagnolo")), (8, L("Corea")), (9, L("Cina")), (10, L("Taiwan e Hong Kong")),
+    ]
+    private static let short: [Int: String] = [1: "JPN", 2: "ENG", 3: "FRA", 4: "ITA", 5: "GER", 7: "SPA", 8: "KOR", 9: "CHS", 10: "CHT"]
+
+    static func codes(_ languages: [Int]) -> String {
+        let c = languages.compactMap { short[$0] }
+        return c.count > 3 ? "\(c.prefix(2).joined(separator: " ")) +\(c.count - 2)" : c.joined(separator: " ")
+    }
+
+    static func describe(_ languages: [Int]) -> String {
+        if languages.isEmpty { return L("Valido in tutto il mondo") }
+        return L("Solo: \(languages.compactMap { short[$0] }.joined(separator: ", "))")
     }
 }

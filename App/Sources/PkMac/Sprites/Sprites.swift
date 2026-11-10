@@ -8,6 +8,9 @@ struct SpriteKey: Hashable, Sendable {
     var shiny: Bool
     var female: Bool
     var egg: Bool
+    /// Form number (-1 = unknown) and form argument (Alcremie's sweet), for exact form sprites.
+    var form: Int = -1
+    var formArg: Int = 0
 }
 
 enum SpriteSettings {
@@ -38,11 +41,15 @@ actor SpriteStore {
     static let shared = SpriteStore()
 
     private let base = URL(string: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/")!
+    /// PKHeX's own sprites (github.com/kwsch/PKHeX), used when PokeAPI has no image for an item.
+    private let pkhexBase = URL(string: "https://raw.githubusercontent.com/kwsch/PKHeX/master/PKHeX.Drawing.PokeSprite/Resources/img/")!
     private let cacheDir: URL
     private var memory: [String: NSImage] = [:]
     private var misses: Set<String> = []
     private var inflight: [String: Task<NSImage?, Never>] = [:]
     private let forms: [Int: [(String, Int)]]
+    /// Cosmetic forms PokeAPI stores as "<species>-<slug>.png" (Vivillon patterns, Unown letters, Alcremie…).
+    private let cosmetic: [Int: [String]]
     private let session: URLSession
 
     init() {
@@ -50,6 +57,7 @@ actor SpriteStore {
         cacheDir = caches.appendingPathComponent("PkMac/Sprites", isDirectory: true)
         try? FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
         forms = SpriteStore.loadForms()
+        cosmetic = SpriteStore.loadCosmetic()
         let cfg = URLSessionConfiguration.default
         cfg.httpMaximumConnectionsPerHost = 8
         cfg.requestCachePolicy = .returnCacheDataElseLoad
@@ -72,6 +80,47 @@ actor SpriteStore {
         return out
     }
 
+    private static func loadCosmetic() -> [Int: [String]] {
+        guard let url = Bundle.main.url(forResource: "pokeapi-cosmetic", withExtension: "json"),
+              let data = try? Data(contentsOf: url),
+              let raw = try? JSONDecoder().decode([String: [String]].self, from: data) else { return [:] }
+        var out: [Int: [String]] = [:]
+        for (k, v) in raw { if let sp = Int(k) { out[sp] = v } }
+        return out
+    }
+
+    /// Alcremie's sweet (form argument), in PKHeX order.
+    private static let alcremieSweets = ["strawberry", "berry", "love", "star", "clover", "flower", "ribbon"]
+
+    /// PokeAPI file slug for a cosmetic form ("666-icy-snow"), matched on the full set of words.
+    func cosmeticSlug(_ key: SpriteKey) -> String? {
+        guard let slugs = cosmetic[key.species], !key.formKey.isEmpty else { return nil }
+        var want: Set<String>
+        switch key.formKey {
+        case "!": want = ["exclamation"]
+        case "?": want = ["question"]
+        default: want = Self.tokens(key.formKey)
+        }
+        if key.species == 869 {
+            let i = max(0, min(Self.alcremieSweets.count - 1, key.formArg))
+            want.formUnion([Self.alcremieSweets[i], "sweet"])
+        }
+        guard !want.isEmpty else { return nil }
+        return slugs.first { Self.tokens($0) == want }
+    }
+
+    /// PKHeX's own sprite name ("666-3", "869-0-4") for forms PokeAPI doesn't have.
+    private static func pkhexName(_ key: SpriteKey) -> String? {
+        guard key.form > 0 || key.species == 869 else { return nil }
+        var n = "\(key.species)"
+        if key.form > 0 { n += "-\(key.form)" }
+        if key.species == 869 {
+            if key.form <= 0 { n += "-0" }
+            n += "-\(max(0, key.formArg))"
+        }
+        return n
+    }
+
     /// PokeAPI "pokemon" id for a species + PKHeX English form name.
     func pokeAPIID(species: Int, formKey: String) -> Int {
         guard !formKey.isEmpty, let candidates = forms[species] else { return species }
@@ -89,7 +138,8 @@ actor SpriteStore {
 
     private static func tokens(_ s: String) -> Set<String> {
         var out: Set<String> = []
-        for raw in s.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }) {
+        let folded = s.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+        for raw in folded.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }) {
             var t = String(raw)
             // "alolan" -> "alola", "galarian" -> "galar", "hisuian" -> "hisui", "paldean" -> "paldea"
             for (suffix, repl) in [("ian", ""), ("an", "a")] where t.hasSuffix(suffix) && t.count > 5 {
@@ -129,23 +179,83 @@ actor SpriteStore {
 
     func image(for key: SpriteKey, style: SpriteStyle) async -> NSImage? {
         if key.egg { return nil }
-        let id = pokeAPIID(species: key.species, formKey: key.formKey)
-        for path in candidates(key, style: style, id: id) {
-            if style == .pixel {
-                if let img = await load(path: path, thumbnail: nil, trim: true) { return img }
-            } else if let img = await load(path: path, thumbnail: style == .home ? 220 : nil) { return img }
+        // Form 0 names (e.g. Basculin "Red-Striped") must not be fuzzy-matched to another form's id.
+        let id = key.form == 0 ? key.species : pokeAPIID(species: key.species, formKey: key.formKey)
+        let shiny = key.shiny ? "shiny/" : ""
+        // 1) Cosmetic form files on PokeAPI ("666-polar.png").
+        if let slug = cosmeticSlug(key) {
+            let paths: [String]
+            switch style {
+            case .home: paths = ["pokemon/other/home/\(shiny)\(key.species)-\(slug).png", "pokemon/\(shiny)\(key.species)-\(slug).png"]
+            case .pixel: paths = ["pokemon/\(shiny)\(key.species)-\(slug).png"]
+            case .artwork: paths = ["pokemon/other/official-artwork/\(shiny)\(key.species)-\(slug).png", "pokemon/other/home/\(shiny)\(key.species)-\(slug).png"]
+            case .animated: paths = ["pokemon/other/showdown/\(shiny)\(key.species)-\(slug).gif"]
+            }
+            for path in paths {
+                if let img = await loadStyled(path, style: style) { return img }
+            }
+        }
+        // 2) Forms with their own PokeAPI id.
+        let all = candidates(key, style: style, id: id)
+        let idPaths = id != key.species ? all.filter { $0.contains("/\(id).") } : []
+        for path in idPaths {
+            if let img = await loadStyled(path, style: style) { return img }
+        }
+        // 3) PKHeX's own sprite for that exact form, before falling back to the base species.
+        if style != .animated, let name = Self.pkhexName(key) {
+            var paths: [String] = []
+            if style == .artwork {
+                if key.shiny { paths.append("Artwork Shiny Sprites/a_\(name)s.png") }
+                paths.append("Artwork Pokemon Sprites/a_\(name).png")
+            }
+            if key.shiny { paths.append("Big Shiny Sprites/b_\(name)s.png") }
+            paths.append("Big Pokemon Sprites/b_\(name).png")
+            for path in paths {
+                let art = path.hasPrefix("Artwork")
+                if let img = await load(path: path, thumbnail: nil, trim: !art, root: pkhexBase) { return img }
+            }
+        }
+        // 4) Base species.
+        for path in all {
+            if let img = await loadStyled(path, style: style) { return img }
         }
         return nil
+    }
+
+    private func loadStyled(_ path: String, style: SpriteStyle) async -> NSImage? {
+        if style == .pixel { return await load(path: path, thumbnail: nil, trim: true) }
+        return await load(path: path, thumbnail: style == .home ? 220 : nil)
     }
 
     func item(_ key: String) async -> NSImage? {
         await load(path: "items/\(key).png", thumbnail: nil)
     }
 
-    private func load(path: String, thumbnail: CGFloat?, trim: Bool = false) async -> NSImage? {
-        let cacheKey = path + (thumbnail.map { "@\(Int($0))" } ?? "") + (trim ? "@trim" : "")
+    /// Item sprite from PKHeX by item ID (today's numbering): big item, then artwork item; TMs and TRs share one image.
+    func pkhexItem(_ id: Int) async -> NSImage? {
+        guard id > 0 else { return nil }
+        switch id {
+        case 328...425, 618...620, 690...694, 737, 2160...2289:
+            return await load(path: "Big Items/bitem_tm.png", thumbnail: nil, root: pkhexBase)
+        case 1130...1229:
+            return await load(path: "Big Items/bitem_tr.png", thumbnail: nil, root: pkhexBase)
+        default:
+            if let img = await load(path: "Big Items/bitem_\(id).png", thumbnail: nil, root: pkhexBase) { return img }
+            return await load(path: "Artwork Items/aitem_\(id).png", thumbnail: 96, root: pkhexBase)
+        }
+    }
+
+    /// Official gym badge (PokeAPI sprites/badges/N.png).
+    func badge(_ id: Int) async -> NSImage? {
+        await load(path: "badges/\(id).png", thumbnail: 96)
+    }
+
+    private func load(path: String, thumbnail: CGFloat?, trim: Bool = false, root: URL? = nil) async -> NSImage? {
+        let base = root ?? self.base
+        let prefix = root == nil ? "" : "pkhex/"
+        let cacheKey = prefix + path.replacingOccurrences(of: " ", with: "-") + (thumbnail.map { "@\(Int($0))" } ?? "") + (trim ? "@trim" : "")
         if let img = memory[cacheKey] { return img }
-        if misses.contains(path) { return nil }
+        if misses.contains(prefix + path) { return nil }
         if let t = inflight[cacheKey] { return await t.value }
 
         let file = cacheDir.appendingPathComponent(cacheKey.replacingOccurrences(of: "/", with: "_"))
@@ -171,7 +281,7 @@ actor SpriteStore {
         inflight[cacheKey] = task
         let result = await task.value
         inflight[cacheKey] = nil
-        if let result { memory[cacheKey] = result } else { misses.insert(path) }
+        if let result { memory[cacheKey] = result } else { misses.insert(prefix + path) }
         return result
     }
 
@@ -248,7 +358,7 @@ struct PokemonSprite: View {
     private var effective: SpriteStyle {
         mode == SpriteSettings.Mode.twoD.rawValue && style != .animated ? .pixel : style
     }
-    private var taskID: String { key.map { "\($0.species)-\($0.formKey)-\($0.shiny)-\($0.female)-\(effective.rawValue)" } ?? "" }
+    private var taskID: String { key.map { "\($0.species)-\($0.form)-\($0.formArg)-\($0.formKey)-\($0.shiny)-\($0.female)-\(effective.rawValue)" } ?? "" }
 
     var body: some View {
         ZStack {
@@ -285,6 +395,8 @@ struct PokemonSprite: View {
 
 struct ItemIcon: View {
     let key: String?
+    /// Item ID in today's numbering: when PokeAPI has no image, PKHeX's own sprite is used.
+    var id: Int? = nil
     @State private var image: NSImage?
 
     var body: some View {
@@ -295,9 +407,13 @@ struct ItemIcon: View {
                 Color.clear
             }
         }
-        .task(id: key) {
-            guard let key else { image = nil; return }
+        .task(id: "\(key ?? "")#\(id ?? 0)") {
+            guard let key else {
+                image = await SpriteStore.shared.pkhexItem(id ?? 0)
+                return
+            }
             if let img = await SpriteStore.shared.item(key) { image = img; return }
+            if let id, let img = await SpriteStore.shared.pkhexItem(id) { image = img; return }
             // Fallbacks for names PokeAPI files differently (TMs/HMs/TRs, records…).
             let lower = key.lowercased()
             let fallback: String? =

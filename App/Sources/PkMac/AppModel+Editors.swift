@@ -169,7 +169,7 @@ extension AppModel {
             await reloadTransferA()
             try await reloadB()
             let dest = to.save == "a" ? save?.game : saveB?.game
-            toast(.success, copy ? L("Copiato in \(dest ?? "")") : L("Trasferito in \(dest ?? "")"), L("Convertito e verificato per il gioco di destinazione."))
+            toast(.success, copy ? L("Copiato in \(dest ?? "")") : L("Trasferito in \(dest ?? "")"), L("Convertito e verificato per il gioco di destinazione. ⌘Z annulla il trasferimento in entrambi i salvataggi."))
         } catch {
             toast(.error, L("Trasferimento non permesso"), error.localizedDescription)
         }
@@ -221,8 +221,8 @@ extension AppModel {
 
     func giftAlbum() async -> GiftAlbum? { await editor("giftAlbum", failure: L("Impossibile leggere i doni segreti")) }
 
-    func giftDatabase(query: String) async -> GiftDb? {
-        await editor("giftDb", ["query": query, "limit": 600], failure: L("Database dei doni non disponibile"))
+    func giftDatabase(query: String, region: String = "") async -> GiftDb? {
+        await editor("giftDb", ["query": query, "limit": 600, "region": region], failure: L("Database dei doni non disponibile"))
     }
 
     func giftDetail(_ id: Int) async -> GiftDetail? { try? await call("giftDb", ["detail": id]) }
@@ -306,5 +306,50 @@ extension AppModel {
         let r: RibbonsSetResult? = await edit("ribbonsSet", p)
         if r != nil { await afterMutation() }
         return r?.ribbons
+    }
+}
+
+
+// MARK: - Backup policy (Settings › Backup)
+
+struct BackupStats: Codable, Sendable {
+    var root: String
+    var count: Int
+    var saves: Int
+    var size: Int64
+    var oldest: String?
+    var keep: Int
+    var days: Int
+}
+
+private struct BackupChange: Codable, Sendable {
+    var removed: Int
+    var stats: BackupStats
+}
+
+enum BackupPolicy {
+    static let keepKey = "pkmac.backupKeep"
+    static let daysKey = "pkmac.backupDays"
+    static var keep: Int { UserDefaults.standard.object(forKey: keepKey) as? Int ?? 20 }
+    static var days: Int { UserDefaults.standard.object(forKey: daysKey) as? Int ?? 0 }
+}
+
+extension AppModel {
+    func applyBackupPolicy() async {
+        _ = try? await send("backupPolicy", ["keep": BackupPolicy.keep, "days": BackupPolicy.days])
+    }
+
+    func backupStats() async -> BackupStats? { try? await call("backupStats") }
+
+    /// Applies the current policy to every save's backups now; returns how many files were removed.
+    func pruneBackups() async -> (Int, BackupStats)? {
+        await applyBackupPolicy()
+        guard let r: BackupChange = try? await call("backupPrune") else { return nil }
+        return (r.removed, r.stats)
+    }
+
+    func deleteAllBackups() async -> (Int, BackupStats)? {
+        guard let r: BackupChange = try? await call("backupDeleteAll") else { return nil }
+        return (r.removed, r.stats)
     }
 }

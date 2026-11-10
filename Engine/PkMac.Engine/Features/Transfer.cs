@@ -107,15 +107,58 @@ public static class Transfer
         if (pk is null)
             throw new EngineException(problem ?? Tr.T($"Trasferimento non possibile."));
 
-        // Trade/handler data is updated by PKHeX for the receiving save.
-        to.Set(toRef, pk, settings: default(EntityImportSettings), label: Tr.T($"Trasferimento"));
+        if (!copy && fromRef.Party && from.Sav.PartyCount <= 1)
+            throw new EngineException(Tr.T($"La squadra deve contenere almeno un Pokémon."));
+
+        // Both sides form one undo step (⌘Z in either save puts everything back, original Pokémon included).
+        var id = Interlocked.Increment(ref _nextLink);
+        var original = from.Get(fromRef).Clone();
         if (!copy)
-        {
-            if (fromRef.Party && from.Sav.PartyCount <= 1)
-                throw new EngineException(Tr.T($"La squadra deve contenere almeno un Pokémon."));
-            from.Clear(fromRef);
-        }
+            SaveTempCopy(from, original);
+        to.Set(toRef, pk, settings: default(EntityImportSettings), label: Tr.T($"Trasferimento"), link: new UndoLink(from, id));
+        if (!copy)
+            from.Clear(fromRef, label: Tr.T($"Trasferimento"), link: new UndoLink(to, id));
+        else
+            from.Mark(fromRef, Tr.T($"Trasferimento"), new UndoLink(to, id));
         return new { ok = true, detail = Describe.Detail(to, toRef, to.Get(toRef)) };
+    }
+
+    private static long _nextLink;
+
+    // ---------- temporary copies of transferred Pokémon ----------
+
+    public static string TempRoot => Path.Combine(SaveIO.AppSupport, "TransferUndo");
+
+    private static string TempFolderFor(string savePath) =>
+        Path.Combine(TempRoot, Path.GetFileName(SaveIO.BackupFolderFor(savePath)));
+
+    /// <summary>
+    /// Safety copy of the Pokémon as it was before the conversion, in its original format (.pk*).
+    /// Deleted when the save it left is saved (<see cref="ClearTempCopies"/>).
+    /// </summary>
+    private static void SaveTempCopy(Session from, PKM original)
+    {
+        if (from.Path is not { } path) return;
+        try
+        {
+            var folder = TempFolderFor(path);
+            Directory.CreateDirectory(folder);
+            var name = Describe.Name(from.English.Species, original.Species);
+            var file = Path.Combine(folder, $"{DateTime.Now:yyyyMMdd-HHmmss-fff}-{name}.{original.Extension}");
+            File.WriteAllBytes(file, Storage.Bytes(original));
+        }
+        catch (Exception e) { Program.Log($"transfer temp copy: {e.Message}"); }
+    }
+
+    public static void ClearTempCopies(string savePath)
+    {
+        try
+        {
+            var folder = TempFolderFor(savePath);
+            if (Directory.Exists(folder))
+                Directory.Delete(folder, recursive: true);
+        }
+        catch (Exception e) { Program.Log($"transfer temp cleanup: {e.Message}"); }
     }
 
     /// <summary>Drops a Pokémon on a box (strip chip): first free, writable slot of that box.</summary>

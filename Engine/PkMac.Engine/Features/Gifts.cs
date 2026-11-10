@@ -95,7 +95,58 @@ public static class Gifts
             used = SafeUsed(g),
             canAlbum,
             canReceive,
+            languages = Languages(g),
         };
+    }
+
+    // ---------- languages / regions ----------
+
+    private static readonly int[] AllLanguages = [1, 2, 3, 4, 5, 7, 8, 9, 10];
+
+    /// <summary>
+    /// Languages a card can be received in (LanguageID: 1 JPN, 2 ENG, 3 FRE, 4 ITA, 5 GER, 7 SPA, 8 KOR, 9 CHS, 10 CHT).
+    /// Empty = any language. Cards don't record the distribution country, only these restrictions.
+    /// </summary>
+    public static int[] Languages(MysteryGift g)
+    {
+        try
+        {
+            switch (g)
+            {
+                case WC9 w: return w.CanBeAnyLanguage() ? [] : AllLanguages.Where(w.CanHaveLanguage).ToArray();
+                case WA9 w: return w.CanBeAnyLanguage() ? [] : AllLanguages.Where(w.CanHaveLanguage).ToArray();
+                case WC8 w: return w.CanBeAnyLanguage() ? [] : AllLanguages.Where(w.CanHaveLanguage).ToArray();
+                case WA8 w: return w.CanBeAnyLanguage() ? [] : AllLanguages.Where(w.CanHaveLanguage).ToArray();
+                case WB8 w: return w.CanBeAnyLanguage() ? [] : AllLanguages.Where(w.CanHaveLanguage).ToArray();
+                case WB7 w: return w.CanBeAnyLanguage() ? [] : AllLanguages.Where(w.CanHaveLanguage).ToArray();
+                case WC7 w: return Fixed(w.Language, w.RestrictLanguage);
+                case WC6 w: return Fixed(w.Language, w.RestrictLanguage);
+                case PGF w: return Fixed(w.Language, w.RestrictLanguage);
+                case PCD w: return Fixed(w.Gift.PK.Language, 0);
+                case PGT w: return Fixed(w.PK.Language, 0);
+            }
+        }
+        catch { }
+        return [];
+    }
+
+    private static int[] Fixed(int language, int restrict) =>
+        language is > 0 and <= 10 ? [language] : restrict is > 0 and <= 10 ? [restrict] : [];
+
+    private static int[]?[]? _languages;
+    private static int[] LanguagesAt(int i)
+    {
+        var cache = _languages ??= new int[]?[All.Length];
+        return cache[i] ??= Languages(All[i]);
+    }
+
+    /// <summary>region: "" all, "any" valid everywhere, or a LanguageID (only cards restricted to languages that include it).</summary>
+    private static bool MatchesRegion(int index, string? region)
+    {
+        if (string.IsNullOrEmpty(region)) return true;
+        var langs = LanguagesAt(index);
+        if (region == "any") return langs.Length == 0;
+        return int.TryParse(region, out var lang) && langs.Length > 0 && langs.Contains(lang);
     }
 
     private static bool SafeUsed(MysteryGift g) { try { return g.GiftUsed; } catch { return false; } }
@@ -115,7 +166,7 @@ public static class Gifts
         return g is PCD { CanConvertToPGT: true } && types.Contains(nameof(PGT));
     }
 
-    public static object Database(Session s, string? query, int limit, int detail = -1)
+    public static object Database(Session s, string? query, int limit, int detail = -1, string? region = null)
     {
         var sav = s.Sav;
         var all = All;
@@ -139,6 +190,8 @@ public static class Gifts
             bool canReceive = entity(g);
             bool canAlbum = cards is not null && AlbumCompatible(sav, g, types);
             if (!canReceive && !canAlbum)
+                continue;
+            if (!MatchesRegion(i, region))
                 continue;
             if (q.Length > 0)
             {

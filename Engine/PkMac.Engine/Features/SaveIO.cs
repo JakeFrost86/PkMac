@@ -177,6 +177,7 @@ public static class SaveIO
         steps.Add(Tr.T($"Rilettura dal disco identica, byte per byte"));
 
         s.Dirty = false;
+        Transfer.ClearTempCopies(path);
         return new { path, backup = backupPath, steps, sha256 = Convert.ToHexString(SHA256.HashData(data))[..16] };
     }
 
@@ -220,6 +221,7 @@ public static class SaveIO
         s.Load(s.Sav, path, target);
         s.Dirty = false;
         _ = reData;
+        Transfer.ClearTempCopies(path);
         return new { path, backup = backupPath, steps, sha256 = Convert.ToHexString(SHA256.HashData(data))[..16] };
     }
 
@@ -273,10 +275,90 @@ public static class SaveIO
             return "";
         var dest = Path.Combine(folder, $"{stamp:yyyyMMdd-HHmmss}-{reason}.bak");
         File.Copy(savePath, dest, overwrite: true);
-        // Keep the 40 most recent.
-        foreach (var old in Directory.GetFiles(folder, "*.bak").OrderByDescending(f => f).Skip(40))
-            File.Delete(old);
+        Prune(folder, keepNewest: dest);
         return dest;
+    }
+
+    // ---------- backup policy (Settings › Backup) ----------
+
+    /// <summary>Backups kept for each save (newest first). 0 = no limit.</summary>
+    public static int BackupKeep { get; set; } = 20;
+    /// <summary>Backups older than this many days are deleted. 0 = never.</summary>
+    public static int BackupMaxDays { get; set; }
+
+    public static object SetBackupPolicy(int keep, int days)
+    {
+        BackupKeep = Math.Max(0, keep);
+        BackupMaxDays = Math.Max(0, days);
+        return BackupStats();
+    }
+
+    /// <summary>Applies the policy to one save's folder. The backup just written is always kept.</summary>
+    private static int Prune(string folder, string? keepNewest = null)
+    {
+        if (!Directory.Exists(folder)) return 0;
+        var files = Directory.GetFiles(folder, "*.bak").OrderByDescending(f => Path.GetFileName(f)).ToList();
+        var limit = DateTime.Now.AddDays(-BackupMaxDays);
+        int removed = 0;
+        for (int i = 0; i < files.Count; i++)
+        {
+            var f = files[i];
+            if (f == keepNewest) continue;
+            bool tooMany = BackupKeep > 0 && i >= BackupKeep;
+            bool tooOld = BackupMaxDays > 0 && File.GetLastWriteTime(f) < limit;
+            if (!tooMany && !tooOld) continue;
+            try { File.Delete(f); removed++; } catch (Exception e) { Program.Log($"backup prune: {e.Message}"); }
+        }
+        try { if (!Directory.EnumerateFileSystemEntries(folder).Any()) Directory.Delete(folder); } catch { }
+        return removed;
+    }
+
+    public static object BackupStats()
+    {
+        int count = 0, saves = 0; long size = 0;
+        DateTime? oldest = null;
+        if (Directory.Exists(BackupRoot))
+        {
+            foreach (var dir in Directory.GetDirectories(BackupRoot))
+            {
+                var files = Directory.GetFiles(dir, "*.bak");
+                if (files.Length == 0) continue;
+                saves++;
+                foreach (var f in files)
+                {
+                    var fi = new FileInfo(f);
+                    count++; size += fi.Length;
+                    if (oldest is null || fi.LastWriteTime < oldest) oldest = fi.LastWriteTime;
+                }
+            }
+        }
+        return new { root = BackupRoot, count, saves, size, oldest = oldest?.ToString("o"), keep = BackupKeep, days = BackupMaxDays };
+    }
+
+    public static object PruneAllBackups()
+    {
+        int removed = 0;
+        if (Directory.Exists(BackupRoot))
+            foreach (var dir in Directory.GetDirectories(BackupRoot))
+                removed += Prune(dir);
+        return new { removed, stats = BackupStats() };
+    }
+
+    public static object DeleteAllBackups()
+    {
+        int removed = 0;
+        if (Directory.Exists(BackupRoot))
+        {
+            foreach (var dir in Directory.GetDirectories(BackupRoot))
+            {
+                foreach (var f in Directory.GetFiles(dir, "*.bak"))
+                {
+                    try { File.Delete(f); removed++; } catch (Exception e) { Program.Log($"backup delete: {e.Message}"); }
+                }
+                try { if (!Directory.EnumerateFileSystemEntries(dir).Any()) Directory.Delete(dir); } catch { }
+            }
+        }
+        return new { removed, stats = BackupStats() };
     }
 
     public static object Backups(Session s, string? path)

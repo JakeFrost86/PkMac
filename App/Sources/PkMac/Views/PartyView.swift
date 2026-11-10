@@ -328,6 +328,7 @@ struct TrainerView: View {
     @State private var seconds = 0
     @State private var language = 0
     @State private var badges = 0
+    @State private var stamps = 0
 
     var body: some View {
         ScrollView {
@@ -366,7 +367,7 @@ struct TrainerView: View {
     private func load(_ t: TrainerData) {
         name = t.ot; money = "\(t.money)"; tid = "\(t.tid)"; sid = "\(t.sid)"
         gender = t.gender; hours = t.hours; minutes = t.minutes; seconds = t.seconds
-        language = t.language; badges = t.badges?.value ?? 0
+        language = t.language; badges = t.badges?.value ?? 0; stamps = t.stamps?.value ?? 0
     }
 
     private func row<C: View>(_ label: String, @ViewBuilder _ c: () -> C) -> some View {
@@ -430,21 +431,42 @@ struct TrainerView: View {
                 }
                 if let b = t.badges {
                     row(L("Medaglie")) {
-                        HStack(spacing: 5) {
-                            ForEach(0..<b.count, id: \.self) { i in
-                                let on = badges & (1 << i) != 0
-                                Button {
-                                    badges ^= (1 << i)
-                                } label: {
-                                    Image(systemName: on ? "seal.fill" : "seal")
-                                        .font(.system(size: 17))
-                                        .foregroundStyle(on ? AnyShapeStyle(LinearGradient(colors: [.yellow, .orange], startPoint: .top, endPoint: .bottom)) : AnyShapeStyle(.tertiary))
+                        if b.layout == "galar" {
+                            GalarBadgeCase(value: $badges, shield: t.versionKey == "SH")
+                        } else {
+                            VStack(alignment: .leading, spacing: 6) {
+                                ForEach(Array(stride(from: 0, to: b.count, by: 8)), id: \.self) { start in
+                                    HStack(spacing: 5) {
+                                        ForEach(start..<min(start + 8, b.count), id: \.self) { i in
+                                            let on = badges & (1 << i) != 0
+                                            let sprites = b.sprites ?? []
+                                            let sid: Int? = sprites.indices.contains(i) ? sprites[i] : nil
+                                            Button {
+                                                badges ^= (1 << i)
+                                            } label: {
+                                                BadgeIcon(spriteID: sid, on: on)
+                                            }
+                                            .buttonStyle(.plain)
+                                            .allowsHitTesting(b.readOnly != true)
+                                            .help(L("Medaglia \(i + 1)"))
+                                        }
+                                    }
                                 }
-                                .buttonStyle(.plain)
-                                .help(L("Medaglia \(i + 1)"))
                             }
+                        }
+                        Spacer(minLength: 6)
+                        if b.readOnly != true {
                             Button(L("Tutte")) { badges = (1 << b.count) - 1 }.buttonStyle(.glass).controlSize(.small)
                         }
+                    }
+                    if b.readOnly == true {
+                        Text(L("In Scarlatto e Violetto le medaglie sono i segnali della trama «palestra superata»: qui le vedi, ma si cambiano solo da Eventi di gioco o Dati avanzati."))
+                            .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                if let st = t.stamps {
+                    row(L("Timbri")) {
+                        StampGrid(names: st.names, value: $stamps)
                     }
                 }
                 if let seen = t.seenCount, let caught = t.caughtCount, seen + caught > 0 {
@@ -465,7 +487,8 @@ struct TrainerView: View {
         if let v = Int(tid) { p["tid"] = v }
         if (t.hasSid ?? true), let v = Int(sid) { p["sid"] = v }
         if !(t.languages ?? []).isEmpty { p["language"] = language }
-        if t.badges != nil { p["badges"] = badges }
+        if let b = t.badges, b.readOnly != true { p["badges"] = badges }
+        if t.stamps != nil { p["stamps"] = stamps }
         if let nt = await model.setTrainer(p) {
             self.t = nt
             load(nt)
@@ -522,5 +545,124 @@ private struct TrainerCard: View {
             Text(k.uppercased()).font(.system(size: 9.5, weight: .bold, design: .rounded)).tracking(1).opacity(0.75)
             Text(v).font(.system(size: 16, weight: .bold, design: .rounded))
         }
+    }
+}
+
+
+/// One gym badge: the official sprite of that game (PokeAPI) when available, a generic seal otherwise.
+/// Badges not obtained are shown faded and in grey.
+struct BadgeIcon: View {
+    let spriteID: Int?
+    let on: Bool
+    @State private var image: NSImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(nsImage: image).resizable().interpolation(.high).scaledToFit()
+                    .saturation(on ? 1 : 0)
+                    .opacity(on ? 1 : 0.28)
+                    .shadow(color: .black.opacity(on ? 0.25 : 0), radius: 2, y: 1)
+            } else {
+                Image(systemName: on ? "seal.fill" : "seal")
+                    .font(.system(size: 17))
+                    .foregroundStyle(on ? AnyShapeStyle(LinearGradient(colors: [.yellow, .orange], startPoint: .top, endPoint: .bottom)) : AnyShapeStyle(.tertiary))
+            }
+        }
+        .frame(width: 24, height: 24)
+        .scaleEffect(on ? 1 : 0.92)
+        .animation(Theme.snappy, value: on)
+        .task(id: spriteID) {
+            guard let spriteID else { image = nil; return }
+            image = await SpriteStore.shared.badge(spriteID)
+        }
+    }
+}
+
+
+/// Sun/Moon trainer card stamps: one toggle per stamp.
+struct StampGrid: View {
+    let names: [String]
+    @Binding var value: Int
+
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 6, alignment: .leading)], alignment: .leading, spacing: 6) {
+            ForEach(Array(names.enumerated()), id: \.offset) { i, name in
+                let on = value & (1 << i) != 0
+                Button { value ^= (1 << i) } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: on ? "checkmark.seal.fill" : "seal")
+                            .foregroundStyle(on ? AnyShapeStyle(LinearGradient(colors: [.yellow, .orange], startPoint: .top, endPoint: .bottom)) : AnyShapeStyle(.tertiary))
+                        Text(name).font(.system(size: 11.5, design: .rounded)).foregroundStyle(on ? .primary : .secondary).lineLimit(2)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+/// Sword/Shield: one round badge case made of eight pieces, one per gym; click a piece to add or remove that badge.
+/// Original drawing (type symbols), not the game's artwork.
+struct GalarBadgeCase: View {
+    @Binding var value: Int
+    let shield: Bool
+
+    /// Gym order as stored in the save: Grass, Water, Fire, Fighting/Ghost, Fairy, Rock/Ice, Dark, Dragon.
+    private var gyms: [(symbol: String, color: Color, name: String)] {
+        [
+            ("leaf.fill", Color(hex: 0x5FBD58), L("Erba")),
+            ("drop.fill", Color(hex: 0x3D9BE9), L("Acqua")),
+            ("flame.fill", Color(hex: 0xF08030), L("Fuoco")),
+            shield ? ("moon.haze.fill", Color(hex: 0x705898), L("Spettro")) : ("figure.boxing", Color(hex: 0xC03028), L("Lotta")),
+            ("sparkles", Color(hex: 0xEE99AC), L("Folletto")),
+            shield ? ("snowflake", Color(hex: 0x6CC9E0), L("Ghiaccio")) : ("mountain.2.fill", Color(hex: 0xB8A038), L("Roccia")),
+            ("moon.fill", Color(hex: 0x4A4A4A), L("Buio")),
+            ("lizard.fill", Color(hex: 0x3B4CCA), L("Drago")),
+        ]
+    }
+
+    var body: some View {
+        let size: CGFloat = 132
+        ZStack {
+            Circle().fill(.primary.opacity(0.06))
+            ForEach(0..<8, id: \.self) { i in
+                let on = value & (1 << i) != 0
+                let g = gyms[i]
+                let mid = Angle.degrees(Double(i) * 45 - 90 + 22.5)
+                ZStack {
+                    Wedge(start: .degrees(Double(i) * 45 - 90), end: .degrees(Double(i + 1) * 45 - 90))
+                        .fill(on ? AnyShapeStyle(LinearGradient(colors: [Color(hex: 0xF6DC7A), Color(hex: 0xE2B53E)], startPoint: .top, endPoint: .bottom)) : AnyShapeStyle(.primary.opacity(0.07)))
+                    Wedge(start: .degrees(Double(i) * 45 - 90), end: .degrees(Double(i + 1) * 45 - 90))
+                        .stroke(.primary.opacity(0.18), lineWidth: 1)
+                    Image(systemName: g.symbol)
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(on ? g.color : Color.secondary.opacity(0.45))
+                        .offset(x: cos(mid.radians) * size * 0.31, y: sin(mid.radians) * size * 0.31)
+                }
+                .contentShape(Wedge(start: .degrees(Double(i) * 45 - 90), end: .degrees(Double(i + 1) * 45 - 90)))
+                .onTapGesture { withAnimation(Theme.snappy) { value ^= (1 << i) } }
+                .help(L("Medaglia \(i + 1) · \(g.name)"))
+            }
+            Circle().strokeBorder(.primary.opacity(0.2), lineWidth: 1.5)
+        }
+        .frame(width: size, height: size)
+    }
+}
+
+/// Pie slice from the centre, angles measured clockwise from the right.
+struct Wedge: Shape {
+    let start: Angle
+    let end: Angle
+    func path(in r: CGRect) -> Path {
+        let c = CGPoint(x: r.midX, y: r.midY)
+        let radius = min(r.width, r.height) / 2
+        var p = Path()
+        p.move(to: c)
+        p.addArc(center: c, radius: radius, startAngle: start, endAngle: end, clockwise: false)
+        p.closeSubpath()
+        return p
     }
 }

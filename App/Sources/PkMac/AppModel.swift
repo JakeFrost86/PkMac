@@ -118,6 +118,8 @@ final class AppModel {
 
     // UI state
     var toasts: [Toast] = []
+    /// "Make legal" / "Make mine" waiting for confirmation (shows the list of changes).
+    var pendingLegalize: PendingLegalize?
     var busy: String?
     var progress: ProgressInfo?
     var lastSave: SaveResult?
@@ -174,6 +176,7 @@ final class AppModel {
             var langParams: [String: Any] = ["lang": Lang.engineCode]
             if let table = Bundle.main.url(forResource: Lang.engineCode, withExtension: "json", subdirectory: "Lang") { langParams["table"] = table.path }
             try await client.send("setLanguage", langParams)
+            await applyBackupPolicy()
             await applyALMSettings()
             engineState = .ready
         } catch {
@@ -435,6 +438,11 @@ final class AppModel {
             let r: UndoResult = try await call(method)
             if let label = r.applied {
                 await afterMutation()
+                // A transfer is undone in both saves: refresh the second one too.
+                if saveB != nil {
+                    await reloadTransferA()
+                    try? await reloadB()
+                }
                 toast(.info, method == "undo" ? L("Annullato: \(label)") : L("Ripristinato: \(label)"))
             }
         } catch {
@@ -552,13 +560,26 @@ final class AppModel {
         _ = try? await send("setNamer", namerParams)
     }
 
-    func legalize(_ ref: SlotRef) async {
-        await perform(L("Auto Legality al lavoro…")) {
-            let r: LegalizeResult = try await call("legalize", ["ref": ref.json])
+    /// Works out what has to change and asks for confirmation before touching the Pokémon.
+    func legalize(_ ref: SlotRef, mine: Bool = false) async {
+        await perform(mine ? L("Preparo «Rendi mio»…") : L("Cerco il modo meno invasivo per renderlo legale…")) {
+            let p: LegalizePreview = try await call("legalizePreview", ["ref": ref.json, "mine": mine])
+            if !mine && p.before && p.changes.isEmpty {
+                toast(.info, L("Era già legale"))
+                return
+            }
+            pendingLegalize = PendingLegalize(ref: ref, preview: p)
+        }
+    }
+
+    func applyPendingLegalize() async {
+        guard let p = pendingLegalize else { return }
+        pendingLegalize = nil
+        await perform(nil) {
+            let r: LegalizeApplied = try await call("legalizeApply", ["ref": p.ref.json])
             await afterMutation()
-            if r.after && !r.before { toast(.success, L("Ora è legale"), L("Auto Legality ha rigenerato il Pokémon.")) }
-            else if r.after { toast(.info, L("Era già legale")) }
-            else { toast(.warning, L("Non è stato possibile renderlo legale"), L("Prova a cambiare mosse o abilità.")) }
+            if r.legal { toast(.success, p.preview.mine ? L("Ora è tuo ed è legale") : L("Ora è legale")) }
+            else { toast(.warning, L("Modifiche applicate, ma non è ancora legale"), L("Controlla il rapporto di legalità.")) }
         }
     }
 

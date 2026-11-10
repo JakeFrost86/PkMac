@@ -43,6 +43,7 @@ struct MainView: View {
         .navigationSubtitle(subtitle)
         .sheet(isPresented: $model.showShowdownImport) { ShowdownImportSheet() }
         .sheet(isPresented: $model.showCreate) { CreatePokemonSheet() }
+        .sheet(item: $model.pendingLegalize) { p in LegalizePreviewSheet(pending: p) }
     }
 
     private var subtitle: String {

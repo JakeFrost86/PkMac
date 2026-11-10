@@ -111,7 +111,19 @@ public static class FeatureTest
                 var p = new Params(new JsonObject { ["ot"] = "Test", ["hours"] = 12, ["minutes"] = 34, ["seconds"] = 56, ["money"] = 1234, ["tid"] = 12345 });
                 TrainerInfo.Set(s, p);
                 if (sav.OT != "Test" || sav.PlayedHours != 12 || sav.DisplayTID != 12345) throw new Exception("valori non applicati");
-                return $"fmt {t["idFormat"]} badges {(t["badges"] is null ? "-" : t["badges"]!["count"]!.ToString())}";
+                if (t["badges"] is { } bd && bd["readOnly"]?.GetValue<bool>() != true)
+                {
+                    TrainerInfo.Set(s, new Params(new JsonObject { ["badges"] = 0b101 }));
+                    var back = ToNode(TrainerInfo.Get(s))["badges"]!["value"]!.GetValue<int>();
+                    if (back != 0b101) throw new Exception($"medaglie non scritte ({back})");
+                }
+                if (t["stamps"] is { } st)
+                {
+                    TrainerInfo.Set(s, new Params(new JsonObject { ["stamps"] = 0b11 }));
+                    if (ToNode(TrainerInfo.Get(s))["stamps"]!["value"]!.GetValue<int>() != 0b11) throw new Exception("timbri non scritti");
+                }
+                var spr = (t["badges"]?["sprites"]?.ToJsonString() ?? "-") + (t["stamps"] is null ? "" : $" timbri {t["stamps"]!["names"]!.AsArray().Count}");
+                return $"fmt {t["idFormat"]} badges {(t["badges"] is null ? "-" : t["badges"]!["count"]!.ToString())} sprite {spr}";
             });
             T(g, "bag", () =>
             {
@@ -307,6 +319,61 @@ public static class FeatureTest
                     return $"ok → {landed.GetType().Name} legale={lla.Valid}" + (lla.Valid ? "" : " · " + lla.Report().Split('\n')[0]);
                 }
                 return "rifiutato: " + check["problem"]!.ToString().Replace("\n", " | ");
+            });
+            T($"{a}→{b}", "annulla", () =>
+            {
+                var src = new SlotRef(false, 0, 10); var dst = new SlotRef(false, 0, 12);
+                if (!ToNode(Transfer.Check(from, src, to))["ok"]!.GetValue<bool>()) return "n/d";
+                var orig = from.Get(src).Clone();
+                bool Back() => from.Get(src).Species == orig.Species && from.Get(src).PID == orig.PID && to.Get(dst).Species == 0;
+                Transfer.Move(from, src, to, dst, copy: false);
+                if (from.Get(src).Species != 0 || to.Get(dst).Species == 0) throw new Exception("spostamento non eseguito");
+                from.Undo();
+                if (!Back()) throw new Exception("⌘Z dal salvataggio di partenza non ha rimesso tutto a posto");
+                from.Redo();
+                if (from.Get(src).Species != 0 || to.Get(dst).Species == 0) throw new Exception("ripeti non ha rifatto il trasferimento");
+                to.Undo();
+                if (!Back()) throw new Exception("⌘Z dal salvataggio di arrivo non ha rimesso tutto a posto");
+                return "⌘Z e ripeti su entrambi i salvataggi ok, originale non convertito ripristinato";
+            });
+        }
+
+        // Make legal: Sword/Shield overworld Pokémon rebuilt from the seed of its own EC; Make mine.
+        if (Find("SW") is { } swS)
+        {
+            T("SW", "seme", () =>
+            {
+                var probe = EntityBlank.GetBlank(swS.Sav);
+                probe.Species = (ushort)Species.Skwovet;
+                var enc = EncounterMovesetGenerator.GenerateEncounters(probe, swS.Sav, ReadOnlyMemory<ushort>.Empty, GameVersion.SW)
+                    .FirstOrDefault(e => e is IOverworldCorrelation8 z && z.GetRequirement(e.ConvertToPKM(swS.Sav)) == OverworldCorrelation8Requirement.MustHave);
+                if (enc is null) return "nessun incontro con seme";
+                var pk = enc.ConvertToPKM(swS.Sav);
+                if (!new LegalityAnalysis(pk).Valid) return "incontro generato non legale (salto)";
+                var ec = pk.EncryptionConstant;
+                pk.IV_HP = pk.IV_ATK = pk.IV_DEF = pk.IV_SPA = pk.IV_SPD = pk.IV_SPE = 0;
+                pk.PID ^= 0x0101_0000; ((IScaledSize)pk).HeightScalar = 90; pk.RefreshChecksum();
+                var r = new SlotRef(false, 0, 20);
+                swS.Set(r, pk, settings: default(EntityImportSettings));
+                var prev = ToNode(AutoLegality.Preview(swS, r, mine: false));
+                if (prev["method"]!.ToString() != "seed") throw new Exception($"metodo {prev["method"]} invece di seed");
+                var applied = ToNode(AutoLegality.ApplyPending(swS, r));
+                if (!applied["legal"]!.GetValue<bool>()) throw new Exception("non legale dopo l'applicazione");
+                if (swS.Get(r).EncryptionConstant != ec) throw new Exception("EC cambiata");
+                var mine = ToNode(AutoLegality.Preview(swS, r, mine: true));
+                return $"ricostruito dal seme, EC invariata · rendi mio: {mine["changes"]!.AsArray().Count} modifiche, legale={mine["legal"]}";
+            });
+        }
+
+        // Gift database by region (card languages).
+        foreach (var (g, s) in sessions.Where(x => x.name is "SW" or "SL" or "US" or "B2").DistinctBy(x => x.name))
+        {
+            T(g, "doni-regione", () =>
+            {
+                int Count(string r) => ToNode(Gifts.Database(s, "", 100000, -1, r))["total"]!.GetValue<int>();
+                var all = Count(""); var any = Count("any"); var jpn = Count("1"); var eng = Count("2");
+                if (any > all || jpn > all) throw new Exception("conteggi incoerenti");
+                return $"tutti {all} · ovunque {any} · JPN {jpn} · ENG {eng}";
             });
         }
 

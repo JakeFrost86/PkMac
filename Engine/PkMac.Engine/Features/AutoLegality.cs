@@ -116,31 +116,179 @@ public static class AutoLegality
 
     public static object Legalize(Session s, SlotRef r)
     {
-        UseSaveTrainer(s.Sav);
         var pk = s.Get(r);
         if (pk.Species == 0) throw new EngineException(Tr.T($"Lo slot è vuoto."));
         var before = new LegalityAnalysis(pk).Valid;
-        PKM result;
-        // 1) PKHeX's own suggestions (moves, relearn moves, met data) — the same fixes PKHeX offers.
-        result = Encounters.ApplySuggestions(pk.Clone());
-        var after = new LegalityAnalysis(result).Valid;
-        // 2) Auto Legality Mod regeneration.
-        if (!after)
-        {
-            try { using (new EnglishScope()) result = s.Sav.Legalize(pk); }
-            catch (MissingMethodException) { throw new EngineException(Tr.T($"Auto Legality non è compatibile con questa versione del core. Aggiorna il pacchetto motore dalle impostazioni.")); }
-            result.Heal();
-            after = new LegalityAnalysis(result).Valid;
-        }
-        // 3) Rebuild from a legal encounter of the same species/form, keeping nickname, nature, IVs/EVs when possible.
-        if (!after && Encounters.CreateLegal(s.Sav, pk.Species, pk.Form, pk.IsShiny, keep: pk) is { } rebuilt)
-        {
-            result = rebuilt;
-            after = true;
-        }
-        if (after)
+        var (result, after, _) = Pipeline(s, pk.Clone());
+        if (after && !before)
             s.Set(r, result, settings: default(EntityImportSettings), label: Tr.T($"Legalizza"));
-        return new { before, after, applied = after, detail = Describe.Detail(s, r, s.Get(r)) };
+        return new { before, after, applied = after && !before, detail = Describe.Detail(s, r, s.Get(r)) };
+    }
+
+    /// <summary>
+    /// The legalization steps, least invasive first:
+    /// 1) PKHeX's suggestions (moves, relearn moves, met data);
+    /// 2) Sword/Shield overworld: PID/IVs/size rebuilt from the seed of its own EC;
+    /// 3) Auto Legality Mod regeneration;
+    /// 4) rebuild from a legal encounter of the same species/form, keeping what it can.
+    /// </summary>
+    private static (PKM pk, bool legal, string method) Pipeline(Session s, PKM pk)
+    {
+        UseSaveTrainer(s.Sav);
+        if (new LegalityAnalysis(pk).Valid)
+            return (pk, true, "none");
+
+        var suggested = Encounters.ApplySuggestions(pk.Clone());
+        if (new LegalityAnalysis(suggested).Valid)
+            return (suggested, true, "suggestions");
+
+        if (Encounters.RestoreFromSeed(suggested.Clone()) is { } seeded)
+        {
+            if (new LegalityAnalysis(seeded).Valid)
+                return (seeded, true, "seed");
+            suggested = seeded;
+        }
+
+        PKM alm;
+        try { using (new EnglishScope()) alm = s.Sav.Legalize(pk.Clone()); }
+        catch (MissingMethodException) { throw new EngineException(Tr.T($"Auto Legality non è compatibile con questa versione del core. Aggiorna il pacchetto motore dalle impostazioni.")); }
+        alm.Heal();
+        if (new LegalityAnalysis(alm).Valid)
+            return (alm, true, "alm");
+
+        if (Encounters.CreateLegal(s.Sav, pk.Species, pk.Form, pk.IsShiny, keep: pk) is { } rebuilt)
+            return (rebuilt, true, "rebuild");
+
+        return (suggested, false, "none");
+    }
+
+    /// <summary>Gives the Pokémon to the save's trainer: OT name, gender, IDs, language.</summary>
+    private static void MakeMine(PKM pk, SaveFile sav)
+    {
+        pk.OriginalTrainerName = sav.OT;
+        pk.OriginalTrainerGender = sav.Gender;
+        if (pk.Format <= 2) pk.TID16 = sav.TID16;
+        else pk.ID32 = sav.ID32;
+        if (pk.Format >= 3 && sav.Language > 0 && pk.Language != sav.Language)
+        {
+            bool nick = pk.IsNicknamed;
+            pk.Language = sav.Language;
+            if (!nick) pk.ClearNickname();
+        }
+        if (pk.Format >= 6)
+        {
+            pk.CurrentHandler = 0;
+            if (pk.HandlingTrainerName == sav.OT)
+            {
+                pk.HandlingTrainerName = "";
+                pk.HandlingTrainerGender = 0;
+            }
+        }
+        pk.RefreshChecksum();
+    }
+
+    private static string Key(SlotRef r) => $"{r.Party}-{r.Box}-{r.Slot}";
+
+    /// <summary>
+    /// Works out what "Make legal" (or "Make mine", then legal) would change, without touching the save.
+    /// The result waits in the session until <see cref="ApplyPending"/>.
+    /// </summary>
+    public static object Preview(Session s, SlotRef r, bool mine)
+    {
+        var original = s.Get(r);
+        if (original.Species == 0) throw new EngineException(Tr.T($"Lo slot è vuoto."));
+        var start = original.Clone();
+        if (mine) MakeMine(start, s.Sav);
+        var (result, legal, method) = Pipeline(s, start);
+        var la = new LegalityAnalysis(result);
+        s.Pending[Key(r)] = (original.Clone(), result, mine ? Tr.T($"Rendi mio") : Tr.T($"Legalizza"));
+        var problems = legal ? [] : Describe.SafeReport(la, s.Language, verbose: false).Split('\n').Where(l => l.Trim().Length > 0).Take(8).ToArray();
+        return new
+        {
+            before = new LegalityAnalysis(original).Valid,
+            legal,
+            method,
+            mine,
+            changes = Diff(s, original, result),
+            problems,
+        };
+    }
+
+    public static object ApplyPending(Session s, SlotRef r)
+    {
+        if (!s.Pending.TryRemove(Key(r), out var p))
+            throw new EngineException(Tr.T($"Nessuna modifica in attesa per questo Pokémon."));
+        var now = s.Get(r);
+        if (now.Species != p.Original.Species || now.PID != p.Original.PID || now.EncryptionConstant != p.Original.EncryptionConstant)
+            throw new EngineException(Tr.T($"Il Pokémon è cambiato dopo l'anteprima: ripeti l'operazione."));
+        p.Result.ResetPartyStats();
+        s.Set(r, p.Result, settings: default(EntityImportSettings), label: p.Label);
+        return new { legal = new LegalityAnalysis(s.Get(r)).Valid, detail = Describe.Detail(s, r, s.Get(r)) };
+    }
+
+    // ---------- what changed ----------
+
+    private static List<(string Label, string Value)> Fields(Session s, PKM pk)
+    {
+        string N(IReadOnlyList<string> list, int i) => Describe.Name(list, i);
+        string Moves(ReadOnlySpan<ushort> m)
+        {
+            var parts = new List<string>();
+            foreach (var x in m) if (x != 0) parts.Add(N(s.Strings.Move, x));
+            return parts.Count == 0 ? "—" : string.Join(", ", parts);
+        }
+        Span<ushort> moves = stackalloc ushort[4];
+        pk.GetMoves(moves);
+        Span<ushort> relearn = stackalloc ushort[4];
+        pk.GetRelearnMoves(relearn);
+        string location;
+        try { location = pk.GetLocationString(false); } catch { location = pk.MetLocation.ToString(); }
+
+        var f = new List<(string, string)>
+        {
+            (Tr.T($"Specie"), N(s.Strings.Species, pk.Species) + (pk.Form > 0 ? $" ({pk.Form})" : "")),
+            (Tr.T($"Soprannome"), pk.Nickname),
+            (Tr.T($"Livello"), pk.CurrentLevel.ToString()),
+            (Tr.T($"Cromatico"), pk.IsShiny ? Tr.T($"sì") : Tr.T($"no")),
+            (Tr.T($"Sesso"), pk.Gender switch { 0 => "♂", 1 => "♀", _ => "—" }),
+            (Tr.T($"Natura"), N(s.Strings.Natures, (int)pk.Nature)),
+            (Tr.T($"Abilità"), pk.Ability > 0 ? N(s.Strings.Ability, pk.Ability) : "—"),
+            (Tr.T($"Strumento"), pk.HeldItem > 0 ? N(s.Strings.Item, pk.HeldItem) : "—"),
+            (Tr.T($"Ball"), N(s.Strings.balllist, pk.Ball)),
+            ("PID", pk.PID.ToString("X8")),
+            ("EC", pk.EncryptionConstant.ToString("X8")),
+            ("IV", $"{pk.IV_HP}/{pk.IV_ATK}/{pk.IV_DEF}/{pk.IV_SPA}/{pk.IV_SPD}/{pk.IV_SPE}"),
+            ("EV", $"{pk.EV_HP}/{pk.EV_ATK}/{pk.EV_DEF}/{pk.EV_SPA}/{pk.EV_SPD}/{pk.EV_SPE}"),
+            (Tr.T($"Mosse"), Moves(moves)),
+        };
+        if (pk.Format >= 6) f.Add((Tr.T($"Mosse ricordabili"), Moves(relearn)));
+        if (pk is IScaledSize sz)
+        {
+            f.Add((Tr.T($"Altezza"), sz.HeightScalar.ToString()));
+            f.Add((Tr.T($"Peso"), sz.WeightScalar.ToString()));
+        }
+        if (pk is IScaledSize3 sc) f.Add((Tr.T($"Scala"), sc.Scale.ToString()));
+        if (pk is ITeraType t) f.Add((Tr.T($"Teratipo"), N(s.Strings.types, (int)t.TeraTypeOriginal)));
+        f.Add((Tr.T($"Luogo d'incontro"), location));
+        f.Add((Tr.T($"Livello d'incontro"), pk.MetLevel.ToString()));
+        if (pk.MetDate is { } md) f.Add((Tr.T($"Data d'incontro"), md.ToString("yyyy-MM-dd")));
+        f.Add((Tr.T($"Gioco d'origine"), GameInfo.GetVersionName(pk.Version)));
+        f.Add((Tr.T($"Allenatore originale"), $"{pk.OriginalTrainerName} {(pk.OriginalTrainerGender == 0 ? "♂" : "♀")}"));
+        f.Add(("ID", pk.GetDisplayTID().ToString()));
+        if (pk.Format >= 3) f.Add((Tr.T($"ID segreto"), pk.GetDisplaySID().ToString()));
+        if (pk.Format >= 3) f.Add((Tr.T($"Lingua"), ((LanguageID)pk.Language).ToString()));
+        if (pk.Format >= 6) f.Add((Tr.T($"Allenatore attuale"), pk.CurrentHandler == 0 ? Tr.T($"originale") : pk.HandlingTrainerName));
+        if (pk is IHomeTrack h) f.Add((Tr.T($"Codice HOME"), h.Tracker.ToString("X16")));
+        return f;
+    }
+
+    private static object[] Diff(Session s, PKM a, PKM b)
+    {
+        var fa = Fields(s, a); var fb = Fields(s, b);
+        var map = fb.ToDictionary(x => x.Label, x => x.Value);
+        return fa.Where(x => map.TryGetValue(x.Label, out var v) && v != x.Value)
+                 .Select(x => (object)new { field = x.Label, from = x.Value, to = map[x.Label] })
+                 .ToArray();
     }
 
     public static object LegalizeBox(Session s, int box)

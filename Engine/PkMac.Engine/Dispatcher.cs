@@ -52,6 +52,10 @@ public sealed class Dispatcher
             ["checksum"] = p => SaveIO.Checksum(S(p)),
             ["backups"] = p => SaveIO.Backups(S(p), p.OptStr("path")),
             ["restoreBackup"] = p => SaveIO.RestoreBackup(S(p), p.Str("backup")),
+            ["backupPolicy"] = p => SaveIO.SetBackupPolicy(p.Int("keep", 20), p.Int("days", 0)),
+            ["backupStats"] = _ => SaveIO.BackupStats(),
+            ["backupPrune"] = _ => SaveIO.PruneAllBackups(),
+            ["backupDeleteAll"] = _ => SaveIO.DeleteAllBackups(),
             ["close"] = p => { S(p).Close(); return true; },
 
             // ---- storage ----
@@ -85,6 +89,8 @@ public sealed class Dispatcher
             // ---- Auto Legality Mod ----
             ["almConfigure"] = p => AutoLegality.Configure(p),
             ["legalize"] = p => AutoLegality.Legalize(S(p), p.Slot()),
+            ["legalizePreview"] = p => AutoLegality.Preview(S(p), p.Slot(), p.Bool("mine")),
+            ["legalizeApply"] = p => AutoLegality.ApplyPending(S(p), p.Slot()),
             ["legalizeBox"] = p => AutoLegality.LegalizeBox(S(p), p.Int("box")),
             ["importShowdown"] = p => AutoLegality.ImportShowdown(S(p), p.Str("text"), p.Int("box"), p.Int("slot", 0)),
             ["createPokemon"] = p => AutoLegality.Create(S(p), p.Slot(), (ushort)p.Int("species"), (byte)p.Int("form", 0), p.Bool("shiny")),
@@ -122,7 +128,7 @@ public sealed class Dispatcher
 
             // ---- mystery gifts ----
             ["giftAlbum"] = p => Gifts.Album(S(p)),
-            ["giftDb"] = p => Gifts.Database(S(p), p.OptStr("query"), p.Int("limit", 400), p.Int("detail", -1)),
+            ["giftDb"] = p => Gifts.Database(S(p), p.OptStr("query"), p.Int("limit", 400), p.Int("detail", -1), p.OptStr("region")),
             ["giftReceive"] = p => Gifts.Receive(S(p), p.Int("id"), p.OptObj("ref") is { } gr ? SlotRef.From(gr) : null),
             ["giftToAlbum"] = p => Gifts.PutInAlbum(S(p), p.Int("id"), p.Int("slot", -1)),
             ["giftDelete"] = p => Gifts.Delete(S(p), p.Int("slot")),

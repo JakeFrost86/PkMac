@@ -150,6 +150,20 @@ public static class Storage
             pk.EncryptionConstant = uint.Parse(ecHex.Trim().Replace("0x", ""), System.Globalization.NumberStyles.HexNumber);
         if (c.Bool("rerollPid")) pk.SetPIDGender(pk.Gender);
         if (c.Bool("rerollEc")) pk.SetRandomEC();
+        if (c.OptStr("homeTracker") is { } htHex && pk is IHomeTrack home)
+        {
+            var t = htHex.Trim().Replace("0x", "").Replace(" ", "");
+            if (t.Length > 16 || (t.Length > 0 && !ulong.TryParse(t, System.Globalization.NumberStyles.HexNumber, null, out _)))
+                throw new EngineException(Tr.T($"Codice HOME non valido: servono fino a 16 cifre esadecimali (0-9, A-F)."));
+            home.Tracker = t.Length == 0 ? 0 : ulong.Parse(t, System.Globalization.NumberStyles.HexNumber);
+        }
+        if (pk is IScaledSize size)
+        {
+            if (c.Has("height")) size.HeightScalar = (byte)Math.Clamp(c.Int("height"), 0, 255);
+            if (c.Has("weight")) size.WeightScalar = (byte)Math.Clamp(c.Int("weight"), 0, 255);
+        }
+        if (c.Has("scale") && pk is IScaledSize3 sc)
+            sc.Scale = (byte)Math.Clamp(c.Int("scale"), 0, 255);
         if (c.Has("friendship"))
             pk.CurrentFriendship = (byte)Math.Clamp(c.Int("friendship"), 0, 255);
         if (c.Has("teraType") && pk is ITeraType tera)

@@ -103,7 +103,7 @@ Il motore si aggiorna da solo: quando esce una nuova versione di PKHeX.Core, PkM
 
 ### Screenshot
 
-> **Sprite.** Gli sprite di Pokémon, oggetti e allenatori che vedi nell'app e negli screenshot non sono miei e non fanno parte di PkMac. L'app li scarica al bisogno dal repository pubblico [PokeAPI/sprites](https://github.com/PokeAPI/sprites) (gli sprite degli allenatori da Pokémon Showdown). Tutti i diritti su immagini e personaggi appartengono a Nintendo, Creatures e GAME FREAK.
+> **Sprite.** Gli sprite di Pokémon, oggetti e allenatori che vedi nell'app e negli screenshot non sono miei e non fanno parte di PkMac. L'app li scarica al bisogno dal repository pubblico [PokeAPI/sprites](https://github.com/PokeAPI/sprites) (gli sprite degli allenatori da Pokémon Showdown, quelli di oggetti e forme che mancano su PokeAPI dal repository di PKHeX). Tutti i diritti su immagini e personaggi appartengono a Nintendo, Creatures e GAME FREAK.
 
 | | |
 |:-:|:-:|
@@ -239,7 +239,7 @@ The engine updates itself: when a new PKHeX.Core is released, PkMac downloads it
 
 > The screenshots show the app in Italian; switch it to English from the welcome screen.
 >
-> **Sprites.** The Pokémon, item and trainer sprites you see in the app and in the screenshots are not mine and are not part of PkMac. The app downloads them on demand from the public [PokeAPI/sprites](https://github.com/PokeAPI/sprites) repository (trainer sprites from Pokémon Showdown). All rights to the images and characters belong to Nintendo, Creatures and GAME FREAK.
+> **Sprites.** The Pokémon, item and trainer sprites you see in the app and in the screenshots are not mine and are not part of PkMac. The app downloads them on demand from the public [PokeAPI/sprites](https://github.com/PokeAPI/sprites) repository (trainer sprites from Pokémon Showdown, item and form sprites missing from PokeAPI from the PKHeX repository). All rights to the images and characters belong to Nintendo, Creatures and GAME FREAK.
 
 | | |
 |:-:|:-:|

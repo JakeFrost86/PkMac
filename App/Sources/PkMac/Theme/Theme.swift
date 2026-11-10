@@ -149,6 +149,8 @@ struct Card<Content: View>: View {
     var title: String?
     var symbol: String?
     var tint: Color = .accentColor
+    /// Optional control shown at the right of the title (e.g. a button).
+    var accessory: AnyView? = nil
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -163,6 +165,10 @@ struct Card<Content: View>: View {
                     Text(title)
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundStyle(.secondary)
+                    if let accessory {
+                        Spacer(minLength: 8)
+                        accessory
+                    }
                 }
             }
             content

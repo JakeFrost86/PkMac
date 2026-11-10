@@ -133,7 +133,7 @@ struct CreatePokemonSheet: View {
                     ZStack {
                         Circle().fill(RadialGradient(colors: [t.glow.opacity(0.7), .clear], center: .center, startRadius: 5, endRadius: 110))
                         if shiny { SparkleField().frame(width: 200, height: 180) }
-                        PokemonSprite(key: SpriteKey(species: s.v, formKey: formKey, shiny: shiny, female: false, egg: false), style: .artwork, tint: t.color)
+                        PokemonSprite(key: SpriteKey(species: s.v, formKey: formKey, shiny: shiny, female: false, egg: false, form: form), style: .artwork, tint: t.color)
                             .frame(width: 170, height: 170)
                     }
                     .frame(height: 200)

@@ -41,6 +41,26 @@ public static class Bag
         _ => "bag.fill",
     };
 
+    /// <summary>
+    /// Item ID in today's numbering (the one PKHeX's own item sprites use, bitem_N.png):
+    /// Gen 2 and Gen 3 bags use older IDs. 0 when there is no equivalent.
+    /// </summary>
+    public static int SpriteId(SaveFile sav, int id)
+    {
+        try
+        {
+            int v = sav.Generation switch
+            {
+                1 => 0,
+                2 => id <= byte.MaxValue ? ItemConverter.GetItemFuture2((byte)id) : 0,
+                3 => ItemConverter.GetItemFuture3((ushort)id),
+                _ => id,
+            };
+            return sav.Generation is 2 or 3 && v == 128 ? 0 : v; // 128 = no equivalent
+        }
+        catch { return 0; }
+    }
+
     public static object Get(Session s)
     {
         var sav = s.Sav;
@@ -57,11 +77,12 @@ public static class Bag
                 count = i.Count,
                 name = N(names, i.Index),
                 key = Describe.AssetKey(N(english, i.Index)),
+                sid = SpriteId(sav, i.Index),
                 max = bag.GetMaxCount(pouch.Type, i.Index),
             }).ToArray();
             var allowed = pouch.GetAllItems().ToArray()
                 .Where(id => id > 0 && id <= sav.MaxItemID && N(names, id) is { } n && !n.StartsWith('#') && !n.StartsWith('(') && n != "???")
-                .Select(id => new { v = (int)id, t = N(names, id), key = Describe.AssetKey(N(english, id)) })
+                .Select(id => new { v = (int)id, t = N(names, id), key = Describe.AssetKey(N(english, id)), sid = SpriteId(sav, id) })
                 .OrderBy(x => x.t, StringComparer.CurrentCultureIgnoreCase).ToArray();
             return new
             {

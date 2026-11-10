@@ -58,6 +58,59 @@ public static class Encounters
     /// Creates a legal Pokémon of the given species/form for <paramref name="sav"/> from PKHeX's encounter
     /// tables. With <paramref name="keep"/>, nickname, held item and EVs are carried over when they stay legal.
     /// </summary>
+    /// <summary>
+    /// Sword/Shield overworld encounters: EC, PID, IVs, height and weight all come from one 32-bit seed,
+    /// which can be recovered from the EC. Rebuilds PID/IVs/size from that seed so the Pokémon returns to
+    /// exactly what the game generated (same EC). Null when it doesn't apply or doesn't make it legal.
+    /// </summary>
+    public static PKM? RestoreFromSeed(PKM pk)
+    {
+        if (pk is not PK8 || pk is not IScaledSize size) return null;
+        var la = new LegalityAnalysis(pk);
+        if (la.EncounterMatch is not IOverworldCorrelation8 z || z.GetRequirement(pk) != OverworldCorrelation8Requirement.MustHave)
+            return null;
+        if (z.IsOverworldCorrelationCorrect(pk)) return null;
+
+        var seed = Overworld8RNG.GetOriginalSeed(pk);
+        if (seed == uint.MaxValue) return null;
+        foreach (var flawless in new[] { 0, 2, 3 })
+        {
+            var c = pk.Clone();
+            var xoro = new Xoroshiro128Plus(seed);
+            var ec = (uint)xoro.NextInt(uint.MaxValue);
+            if (ec != c.EncryptionConstant) return null;
+            var pid = (uint)xoro.NextInt(uint.MaxValue);
+            // The game forces the shiny state of the encounter (same rules PKHeX checks).
+            bool rngShiny = ShinyXor(c.ID32, pid) < 16;
+            if (c.IsShiny && !rngShiny)
+                pid = (((uint)c.TID16 ^ c.SID16 ^ (pid & 0xFFFF)) << 16) | (pid & 0xFFFF);
+            else if (!c.IsShiny && rngShiny)
+                pid ^= 0x1000_0000;
+            c.PID = pid;
+
+            Span<int> ivs = [-1, -1, -1, -1, -1, -1];
+            for (int i = 0; i < flawless; i++)
+            {
+                int index;
+                do { index = (int)xoro.NextInt(6); } while (ivs[index] != -1);
+                ivs[index] = 31;
+            }
+            for (int i = 0; i < 6; i++)
+                if (ivs[i] == -1) ivs[i] = (int)xoro.NextInt(32);
+            c.IV_HP = ivs[0]; c.IV_ATK = ivs[1]; c.IV_DEF = ivs[2]; c.IV_SPA = ivs[3]; c.IV_SPD = ivs[4]; c.IV_SPE = ivs[5];
+            var cs = (IScaledSize)c;
+            cs.HeightScalar = (byte)(xoro.NextInt(0x81) + xoro.NextInt(0x80));
+            cs.WeightScalar = (byte)(xoro.NextInt(0x81) + xoro.NextInt(0x80));
+            c.ResetPartyStats();
+            c.RefreshChecksum();
+            if (new LegalityAnalysis(c).Valid || z.IsOverworldCorrelationCorrect(c))
+                return c;
+        }
+        return null;
+    }
+
+    private static uint ShinyXor(uint id32, uint pid) => (pid >> 16) ^ (pid & 0xFFFF) ^ (id32 >> 16) ^ (id32 & 0xFFFF);
+
     public static PKM? CreateLegal(SaveFile sav, ushort species, byte form, bool shiny, PKM? keep = null, int maxTries = 80)
     {
         var probe = EntityBlank.GetBlank(sav);
