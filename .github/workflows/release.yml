@@ -49,4 +49,6 @@ jobs:
           files: |
             build/PkMac.zip
             build/PkMacEngine-osx-arm64.zip
-          generate_release_notes: true
+          # Notes written by hand in release-notes/<version>.md; GitHub's commit list only as a fallback.
+          body_path: ${{ hashFiles(format('release-notes/{0}.md', steps.ver.outputs.app)) != '' && format('release-notes/{0}.md', steps.ver.outputs.app) || '' }}
+          generate_release_notes: ${{ hashFiles(format('release-notes/{0}.md', steps.ver.outputs.app)) == '' }}

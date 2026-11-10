@@ -6,10 +6,24 @@ struct WelcomeView: View {
     @State private var appear = false
 
     var body: some View {
-        VStack(spacing: 26) {
-            Spacer(minLength: 10)
+        GeometryReader { g in
+            content(logo: min(330, max(150, g.size.height * 0.3)))
+                .frame(width: g.size.width, height: g.size.height)
+        }
+        .overlay(alignment: .topTrailing) {
+            LanguageMenu().padding(18)
+        }
+        .onAppear {
+            float = true
+            withAnimation(.easeOut(duration: 0.8).delay(0.1)) { appear = true }
+        }
+    }
 
-            AnimatedLogo(width: 330)
+    private func content(logo: CGFloat) -> some View {
+        VStack(spacing: 22) {
+            Spacer(minLength: 54)
+
+            AnimatedLogo(width: logo)
                 .scaleEffect(appear ? 1 : 0.9)
                 .opacity(appear ? 1 : 0)
 
@@ -50,14 +64,10 @@ struct WelcomeView: View {
                 .foregroundStyle(.tertiary)
 
             if !model.recentFiles.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(L("Recenti")).font(.system(size: 12, weight: .semibold, design: .rounded)).foregroundStyle(.secondary)
-                    ForEach(model.recentFiles.prefix(5), id: \.self) { path in
-                        RecentRow(path: path)
-                    }
-                }
-                .frame(maxWidth: 520)
-                .opacity(appear ? 1 : 0)
+                RecentFilesBox(paths: model.recentFiles)
+                    .frame(maxWidth: 520)
+                    .layoutPriority(-1)
+                    .opacity(appear ? 1 : 0)
             }
 
             Spacer(minLength: 10)
@@ -65,13 +75,31 @@ struct WelcomeView: View {
                 .padding(.bottom, 18)
         }
         .padding(.horizontal, 40)
-        .overlay(alignment: .topTrailing) {
-            LanguageMenu().padding(18)
+    }
+}
+
+/// Recent saves in their own scrolling box: the rest of the welcome screen stays in view at any window size.
+private struct RecentFilesBox: View {
+    let paths: [String]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(L("Recenti")).font(.system(size: 12, weight: .semibold, design: .rounded)).foregroundStyle(.secondary)
+                .padding(.horizontal, 12).padding(.top, 10)
+            ScrollView {
+                VStack(spacing: 2) {
+                    ForEach(paths, id: \.self) { path in
+                        RecentRow(path: path)
+                    }
+                }
+                .padding(.horizontal, 6).padding(.bottom, 6)
+            }
+            .scrollIndicators(.automatic)
         }
-        .onAppear {
-            float = true
-            withAnimation(.easeOut(duration: 0.8).delay(0.1)) { appear = true }
-        }
+        // Up to about four rows; smaller when the window is short, never taller than its content.
+        .frame(minHeight: 70, maxHeight: min(CGFloat(paths.count) * 54 + 40, 260))
+        .background(.primary.opacity(0.04), in: .rect(cornerRadius: 18))
+        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(.primary.opacity(0.08)))
     }
 }
 
