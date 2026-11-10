@@ -11,8 +11,11 @@ struct MainView: View {
                 .navigationSplitViewColumnWidth(min: 220, ideal: 248, max: 300)
         } detail: {
             ZStack(alignment: .top) {
+                // Fixed minimum: section content must never push its own minimum size into the split view
+                // (a changing minimum makes AppKit loop on constraint updates and abort).
                 content
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(minWidth: 560, maxWidth: .infinity, minHeight: 420, maxHeight: .infinity)
+                    .clipped()
                 if !model.searchText.isEmpty {
                     SearchResultsPanel()
                         .padding(.horizontal, 24)
@@ -23,6 +26,8 @@ struct MainView: View {
             .animation(Theme.spring, value: model.searchText.isEmpty)
             .inspector(isPresented: $showInspector) {
                 PokemonInspector()
+                    .frame(minWidth: 340, maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
                     .inspectorColumnWidth(min: 360, ideal: 410, max: 520)
             }
         }
